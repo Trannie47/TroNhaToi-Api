@@ -1,10 +1,9 @@
-import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
+
+import { Controller,Post,Body, Get, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from '../services/auth.service';
 import { LoginDto } from '../dto/login.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
-import { CurrentUser } from '../../common/current-user.decorator';
-
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
@@ -23,7 +22,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Xem thông tin tài khoản hiện tại' })
-  getProfile(@CurrentUser('userId') userId: number) {
-    return this.authService.getProfile(userId);
+  getProfile(@Request() req) {
+    return req.user; //lấy thông tin user đã được giải mã từ JWT token bởi JwtAuthGuard và trả về cho client chứ ko cần lấy bằng id
   }
 }
