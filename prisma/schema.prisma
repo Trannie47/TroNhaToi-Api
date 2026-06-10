@@ -69,6 +69,7 @@ model NguoiThue {
   sdt       String?   @map("SDT")
   queQuan   String?
   ghiChu    String?   @db.Text
+  gioiTinh  String?   @db.VarChar(10)
 
   hopDong       HopDong[]
   phuongTien    PhuongTien[]
