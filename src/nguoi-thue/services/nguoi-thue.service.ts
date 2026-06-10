@@ -12,6 +12,12 @@ export class NguoiThueService {
       include: { hopDong: { include: { phong: true } }, phuongTien: true },
     });
   }
+  //Lấy tất cả người thuê bao gồm những người vừa thêm vào và chưa có hợp đồng nào và sắp xếp đẩy người mới thêm lên đầu
+  async findAllNguoiThue(){
+    return this.prisma.nguoiThue.findMany({
+      orderBy: { idnt: 'desc' },
+    });
+  }
 
   async findOne(id: number) {
     const item = await this.prisma.nguoiThue.findUnique({

@@ -24,6 +24,13 @@ export class NguoiThueController {
     return this.nguoiThueService.findAll();
   }
 
+  @Get('findall')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Danh sách tất cả Người Thuê (bao gồm người mới thêm chưa có hợp đồng)' })
+  findAllNguoiThue() {
+    return this.nguoiThueService.findAllNguoiThue();
+  }
+
   @Get(':idnt')
   @ApiOperation({ summary: 'Chi tiết Người Thuê' })
   @ApiParam({ name: 'idnt', description: 'ID của Người Thuê' })
