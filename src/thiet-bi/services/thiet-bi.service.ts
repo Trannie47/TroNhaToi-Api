@@ -9,17 +9,18 @@ export class ThietBiService {
 
   findAll() {
     return this.prisma.thietBi.findMany({
-      include: { lapRap: { include: { phong: true } } },
+      //include: { lapRap: { include: { phong: true } } },
     });
   }
 
   async findOne(id: number) {
-    const item = await this.prisma.thietBi.findUnique({
-      where: { thietBiId: id },
-      include: { lapRap: { include: { phong: true } } },
-    });
-    if (!item) throw new NotFoundException(`ThietBi với id ${id} không tồn tại`);
-    return item;
+    // const item = await this.prisma.thietBi.findUnique({
+    //   where: { thietBiId: id },
+    //   include: { lapRap: { include: { phong: true } } },
+    // });
+    // if (!item) throw new NotFoundException(`ThietBi với id ${id} không tồn tại`);
+    // return item;
+    return null;
   }
 
   create(dto: CreateThietBiDto) {

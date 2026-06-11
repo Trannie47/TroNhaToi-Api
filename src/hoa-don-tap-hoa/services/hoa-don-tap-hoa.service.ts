@@ -15,7 +15,7 @@ export class HoaDonTapHoaService {
 
   async findOne(id: number) {
     const item = await this.prisma.hoaDonTapHoa.findUnique({
-      where: { maHoaDon: id },
+      where: { maHoaDon: id.toString() },
       include: { nguoiThue: true, chiTietTapHoa: { include: { hangHoa: true } }, phieuThuHdTh: true },
     });
     if (!item) throw new NotFoundException(`HoaDonTapHoa với id ${id} không tồn tại`);
@@ -28,11 +28,11 @@ export class HoaDonTapHoaService {
 
   async update(id: number, dto: UpdateHoaDonTapHoaDto) {
     await this.findOne(id);
-    return this.prisma.hoaDonTapHoa.update({ where: { maHoaDon: id }, data: dto as any });
+    return this.prisma.hoaDonTapHoa.update({ where: { maHoaDon: id.toString() }, data: dto as any });
   }
 
   async remove(id: number) {
     await this.findOne(id);
-    return this.prisma.hoaDonTapHoa.delete({ where: { maHoaDon: id } });
+    return this.prisma.hoaDonTapHoa.delete({ where: { maHoaDon: id.toString() } });
   }
 }

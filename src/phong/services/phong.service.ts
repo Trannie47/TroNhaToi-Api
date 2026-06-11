@@ -9,14 +9,14 @@ export class PhongService {
 
   findAll() {
     return this.prisma.phong.findMany({
-      include: { loaiPhong: true, hopDong: { include: { nguoiThue: true } }, dienNuoc: true, lapRap: { include: { thietBi: true } }, nguoiLuuTruTamThoi: true },
+      // include: { loaiPhong: true, hopDong: { include: { nguoiThue: true } }, dienNuoc: true, lapRap: { include: { thietBi: true } }, nguoiLuuTruTamThoi: true },
     });
   }
 
   async findOne(id: number) {
     const item = await this.prisma.phong.findUnique({
       where: { phongId: id },
-      include: { loaiPhong: true, hopDong: { include: { nguoiThue: true } }, dienNuoc: true, lapRap: { include: { thietBi: true } }, nguoiLuuTruTamThoi: true },
+      // include: { loaiPhong: true, hopDong: { include: { nguoiThue: true } }, dienNuoc: true, lapRap: { include: { thietBi: true } }, nguoiLuuTruTamThoi: true },
     });
     if (!item) throw new NotFoundException(`Phong với id ${id} không tồn tại`);
     return item;

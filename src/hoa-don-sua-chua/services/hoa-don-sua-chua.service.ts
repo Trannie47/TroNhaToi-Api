@@ -9,14 +9,14 @@ export class HoaDonSuaChuaService {
 
   findAll() {
     return this.prisma.hoaDonSuaChua.findMany({
-      include: { suaChua: { include: { phong: true } } },
+     // include: { suachua: { include: { phong: true } } },
     });
   }
 
   async findOne(id: number) {
     const item = await this.prisma.hoaDonSuaChua.findUnique({
       where: { maHoaDonSc: id },
-      include: { suaChua: { include: { phong: true } } },
+      // include: { suaChua: { include: { phong: true } } },
     });
     if (!item) throw new NotFoundException(`HoaDonSuaChua với id ${id} không tồn tại`);
     return item;

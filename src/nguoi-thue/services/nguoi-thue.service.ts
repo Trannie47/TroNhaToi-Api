@@ -9,7 +9,7 @@ export class NguoiThueService {
 
   findAll() {
     return this.prisma.nguoiThue.findMany({
-      include: { hopDong: { include: { phong: true } }, phuongTien: true },
+      //include: { hopDong: { include: { phong: true } }, phuongTien: true },
     });
   }
   //Lấy tất cả người thuê bao gồm những người vừa thêm vào và chưa có hợp đồng nào và sắp xếp đẩy người mới thêm lên đầu
@@ -22,7 +22,7 @@ export class NguoiThueService {
   async findOne(id: number) {
     const item = await this.prisma.nguoiThue.findUnique({
       where: { idnt: id },
-      include: { hopDong: { include: { phong: true } }, phuongTien: true },
+      // include: { hopDong: { include: { phong: true } }, phuongTien: true },
     });
     if (!item) throw new NotFoundException(`NguoiThue với id ${id} không tồn tại`);
     return item;
