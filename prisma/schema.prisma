@@ -25,30 +25,37 @@ model LoaiPhong {
 }
 
 model Phong {
-  phongId     Int        @id @default(autoincrement()) @map("PhongID")
-  tenPhong    String?    @db.VarChar(255)
-  trangThai   String?    @db.VarChar(100)
-  moTa        String?    @db.Text
-  maLoaiPhong Int?
-  isDelete    Boolean    @default(false)
-  dienNuoc    DienNuoc[]
-  loaiPhong   LoaiPhong? @relation(fields: [maLoaiPhong], references: [maLoaiPhong], onDelete: NoAction, onUpdate: NoAction, map: "phong_ibfk_1")
+  phongId            Int                  @id @default(autoincrement()) @map("PhongID")
+  tenPhong           String?              @db.VarChar(255)
+  trangThai          String?              @db.VarChar(100)
+  moTa               String?              @db.Text
+  maLoaiPhong        Int?
+  isDelete           Boolean              @default(false)
+  dienNuoc           DienNuoc[]
+  loaiPhong          LoaiPhong?           @relation(fields: [maLoaiPhong], references: [maLoaiPhong], onDelete: NoAction, onUpdate: NoAction, map: "phong_ibfk_1")
+  HopDong            HopDong[]
+  LapRap             LapRap[]
+  SuaChua            SuaChua[]
+  NguoiLuuTruTamThoi NguoiLuuTruTamThoi[]
 
   @@index([maLoaiPhong], map: "maLoaiPhong")
   @@map("phong")
 }
 
 model NguoiThue {
-  idnt         Int            @id @default(autoincrement()) @map("IDNT")
-  cccd         String?        @map("CCCD") @db.VarChar(50)
-  hoTen        String?        @db.VarChar(255)
-  ngaySinh     DateTime?      @db.Date
-  sdt          String?        @map("SDT") @db.VarChar(20)
-  queQuan      String?        @db.VarChar(255)
-  ghiChu       String?        @db.Text
-  gioiTinh     Boolean        @default(true)
-  isDelete     Boolean        @default(false)
-  hoaDonTapHoa HoaDonTapHoa[]
+  idnt               Int                  @id @default(autoincrement()) @map("IDNT")
+  cccd               String?              @map("CCCD") @db.VarChar(50)
+  hoTen              String?              @db.VarChar(255)
+  ngaySinh           DateTime?            @db.Date
+  sdt                String?              @map("SDT") @db.VarChar(20)
+  queQuan            String?              @db.VarChar(255)
+  ghiChu             String?              @db.Text
+  gioiTinh           Boolean              @default(true)
+  isDelete           Boolean              @default(false)
+  hoaDonTapHoa       HoaDonTapHoa[]
+  HopDong            HopDong[]
+  PhuongTien         PhuongTien[]
+  NguoiLuuTruTamThoi NguoiLuuTruTamThoi[]
 
   @@map("nguoithue")
 }

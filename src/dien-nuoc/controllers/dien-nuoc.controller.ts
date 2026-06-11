@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { DienNuocService } from '../services/dien-nuoc.service';
 import { CreateDienNuocDto } from '../dto/create-dien-nuoc.dto';
@@ -27,19 +27,19 @@ export class DienNuocController {
   @Get(':idDienNuoc')
   @ApiOperation({ summary: 'Chi tiết Điện Nước' })
   @ApiParam({ name: 'idDienNuoc', description: 'ID của Điện Nước' })
-  findOne(@Param('idDienNuoc', ParseIntPipe) id: number) {
+  findOne(@Param('idDienNuoc') id: string) {
     return this.dienNuocService.findOne(id);
   }
 
   @Patch(':idDienNuoc')
   @ApiOperation({ summary: 'Cập nhật Điện Nước' })
-  update(@Param('idDienNuoc', ParseIntPipe) id: number, @Body() dto: UpdateDienNuocDto) {
+  update(@Param('idDienNuoc') id: string, @Body() dto: UpdateDienNuocDto) {
     return this.dienNuocService.update(id, dto);
   }
 
   @Delete(':idDienNuoc')
   @ApiOperation({ summary: 'Xóa Điện Nước' })
-  remove(@Param('idDienNuoc', ParseIntPipe) id: number) {
+  remove(@Param('idDienNuoc') id: string) {
     return this.dienNuocService.remove(id);
   }
 }
