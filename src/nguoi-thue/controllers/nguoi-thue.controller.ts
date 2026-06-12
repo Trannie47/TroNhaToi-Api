@@ -7,22 +7,22 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @ApiTags('Người Thuê')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+//@UseGuards(JwtAuthGuard)
 @Controller('nguoi-thue')
 export class NguoiThueController {
   constructor(private readonly nguoiThueService: NguoiThueService) {}
 
-  @Post()
-  @ApiOperation({ summary: 'Tạo Người Thuê mới' })
-  create(@Body() dto: CreateNguoiThueDto) {
-    return this.nguoiThueService.create(dto);
-  }
+  // @Post()
+  // @ApiOperation({ summary: 'Tạo Người Thuê mới' })
+  // create(@Body() dto: CreateNguoiThueDto) {
+  //   return this.nguoiThueService.create(dto);
+  // }
 
-  @Get()
-  @ApiOperation({ summary: 'Danh sách Người Thuê' })
-  findAll() {
-    return this.nguoiThueService.findAll();
-  }
+  // @Get()
+  // @ApiOperation({ summary: 'Danh sách Người Thuê' })
+  // findAll() {
+  //   return this.nguoiThueService.findAll();
+  // }
 
   @Get('findall')
   @UseGuards(JwtAuthGuard)
@@ -31,22 +31,22 @@ export class NguoiThueController {
     return this.nguoiThueService.findAllNguoiThue();
   }
 
-  @Get(':idnt')
+  @Get(':idnt/listRoomNguoiThue')
   @ApiOperation({ summary: 'Chi tiết Người Thuê' })
   @ApiParam({ name: 'idnt', description: 'ID của Người Thuê' })
-  findOne(@Param('idnt', ParseIntPipe) id: number) {
-    return this.nguoiThueService.findOne(id);
+  findRoom_NguoiThue(@Param('idnt', ParseIntPipe) id: number) {
+    return this.nguoiThueService.findRoom_NguoiThue(id);
   }
 
-  @Patch(':idnt')
-  @ApiOperation({ summary: 'Cập nhật Người Thuê' })
-  update(@Param('idnt', ParseIntPipe) id: number, @Body() dto: UpdateNguoiThueDto) {
-    return this.nguoiThueService.update(id, dto);
-  }
+  // @Patch(':idnt')
+  // @ApiOperation({ summary: 'Cập nhật Người Thuê' })
+  // update(@Param('idnt', ParseIntPipe) id: number, @Body() dto: UpdateNguoiThueDto) {
+  //   return this.nguoiThueService.update(id, dto);
+  // }
 
-  @Delete(':idnt')
-  @ApiOperation({ summary: 'Xóa Người Thuê' })
-  remove(@Param('idnt', ParseIntPipe) id: number) {
-    return this.nguoiThueService.remove(id);
-  }
+  // @Delete(':idnt')
+  // @ApiOperation({ summary: 'Xóa Người Thuê' })
+  // remove(@Param('idnt', ParseIntPipe) id: number) {
+  //   return this.nguoiThueService.remove(id);
+  // }
 }

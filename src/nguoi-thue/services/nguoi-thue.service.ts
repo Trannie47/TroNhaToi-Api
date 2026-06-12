@@ -18,6 +18,22 @@ export class NguoiThueService {
       orderBy: { idnt: 'desc' },
     });
   }
+  async findRoom_NguoiThue(id : number){
+    const listHopDong= await this.prisma.hopDong.findMany({
+      where: {
+        idnt: id,
+        isDelete: false // chỉ lấy những hợp đồng còn hiệu lực
+      },
+      include: {
+        phong: {
+          include: {
+            loaiPhong: true,
+          }
+        }
+      }
+    });
+    return listHopDong.filter((hd)=>hd.phong!==null && hd.isDelete===false); // list lấy cả thông tin  hợp đồng, phòng và loại phòng theo id người thuê
+  }
 
   async findOne(id: number) {
     const item = await this.prisma.nguoiThue.findUnique({
