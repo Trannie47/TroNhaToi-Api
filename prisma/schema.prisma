@@ -27,7 +27,7 @@ model LoaiPhong {
 model Phong {
   phongId            Int                  @id @default(autoincrement()) @map("PhongID")
   tenPhong           String?              @db.VarChar(255)
-  trangThai          String?              @db.VarChar(100)
+  trangThai          Int?                 @default(0)
   moTa               String?              @db.Text
   maLoaiPhong        Int?
   isDelete           Boolean              @default(false)
