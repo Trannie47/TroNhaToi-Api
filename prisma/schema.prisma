@@ -154,6 +154,7 @@ model HangHoa {
   giaNhap       Decimal?        @db.Decimal(10, 2)
   giaBan        Decimal?        @db.Decimal(10, 2)
   isDelete      Boolean         @default(false)
+  donViTinh     String?         @db.VarChar(255)
   chiTietTapHoa ChiTietTapHoa[]
 
   @@map("hanghoa")
@@ -231,13 +232,15 @@ model LapRap {
 model SuaChua {
   id            Int             @id @default(autoincrement())
   phongId       Int?            @map("PhongID")
+  thietBiId     Int?            @map("thietBiID")
   nguyenNhan    String?         @db.Text
   ngaySuaChua   DateTime?       @db.Date
   isDelete      Boolean         @default(false)
   hoadonsuachua HoaDonSuaChua[]
   phong         Phong?          @relation(fields: [phongId], references: [phongId], onDelete: Restrict, onUpdate: Restrict, map: "suaChua_FK")
-
+  
   @@index([phongId], map: "PhongID")
+  @@index([thietBiId], map: "thietBiID")
   @@map("suachua")
 }
 
