@@ -7,11 +7,11 @@ import { UpdateNguoiThueDto } from '../dto/update-nguoi-thue.dto';
 export class NguoiThueService {
   constructor(private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.nguoiThue.findMany({
-      //include: { hopDong: { include: { phong: true } }, phuongTien: true },
-    });
-  }
+  // findAll() {
+  //   return this.prisma.nguoiThue.findMany({
+  //     //include: { hopDong: { include: { phong: true } }, phuongTien: true },
+  //   });
+  // }
   //Lấy tất cả người thuê bao gồm những người vừa thêm vào và chưa có hợp đồng nào và sắp xếp đẩy người mới thêm lên đầu
   async findAllNguoiThue(){
     return this.prisma.nguoiThue.findMany({
@@ -45,7 +45,12 @@ export class NguoiThueService {
   }
 
   create(dto: CreateNguoiThueDto) {
-    return this.prisma.nguoiThue.create({ data: dto as any });
+    return this.prisma.nguoiThue.create({ 
+      data: {
+        ...dto,
+        ngaySinh: dto.ngaySinh ? new Date(dto.ngaySinh) : null,
+      } as any,
+    });
   }
 
   async update(id: number, dto: UpdateNguoiThueDto) {

@@ -12,11 +12,11 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 export class NguoiThueController {
   constructor(private readonly nguoiThueService: NguoiThueService) {}
 
-  // @Post()
-  // @ApiOperation({ summary: 'Tạo Người Thuê mới' })
-  // create(@Body() dto: CreateNguoiThueDto) {
-  //   return this.nguoiThueService.create(dto);
-  // }
+  @Post('create')
+  @ApiOperation({ summary: 'Tạo Người Thuê mới' })
+  create(@Body() dto: CreateNguoiThueDto) {
+    return this.nguoiThueService.create(dto);
+  }
 
   // @Get()
   // @ApiOperation({ summary: 'Danh sách Người Thuê' })
