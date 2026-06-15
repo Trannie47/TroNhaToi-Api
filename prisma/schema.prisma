@@ -210,7 +210,7 @@ model ThietBi {
   trangThai  String?   @db.VarChar(100)
   isDelete   Boolean   @default(false)
   laprap     LapRap[]
-
+  suachua    SuaChua[]
   @@map("thietbi")
 }
 
@@ -240,7 +240,7 @@ model SuaChua {
   hoadonsuachua HoaDonSuaChua?
 
   phong         Phong?          @relation(fields: [phongId], references: [phongId], onDelete: Restrict, onUpdate: Restrict, map: "suaChua_FK")
-  thietbi        ThietBi?        @relation(fields: [thietBiId], references: [thietBiId], onDelete: Restrict, onUpdate: Restrict, map: "suaChua_FK2")
+  thietbi       ThietBi?        @relation(fields: [thietBiId], references: [thietBiId], onDelete: Restrict, onUpdate: Restrict, map: "suaChua_FK2")
 
   @@index([phongId], map: "PhongID")
   @@index([thietBiId], map: "thietBiID")
@@ -254,10 +254,9 @@ model HoaDonSuaChua {
   loaiSua         String?   @db.VarChar(255)
   ngayLapHoaDonSc DateTime? @map("ngayLapHoaDonSC") @db.Date
   isDelete        Boolean   @default(false)
-  idSuaChua       Int?      @unique
+  idSuaChua       Int       @unique
 
-  suachua         SuaChua?  @relation(fields: [idSuaChua], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "hoadonsuachua_ibfk_1"
-  )
+  suachua         SuaChua   @relation(fields: [idSuaChua], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "hoadonsuachua_ibfk_1")
 
   @@map("hoadonsuachua")
 }
@@ -274,7 +273,7 @@ model NguoiLuuTruTamThoi {
   isDelete  Boolean   @default(false)
   phong     Phong?    @relation(fields: [phongId], references: [phongId], onDelete: Restrict, onUpdate: Restrict, map: "NguoiLuuTruTamThoi_FK2")
   nguoithue NguoiThue @relation(fields: [IDNT], references: [idnt], onUpdate: Restrict, map: "NguoiLuuTruTamThoi_Fk1")
-
+  
   @@index([phongId], map: "PhongID")
   @@index([IDNT], map: "NguoiLuuTruTamThoi_Fk1")
   @@map("nguoiluutrutamthoi")
