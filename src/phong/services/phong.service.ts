@@ -7,9 +7,31 @@ import { UpdatePhongDto } from '../dto/update-phong.dto';
 export class PhongService {
   constructor(private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.phong.findMany({
-      // include: { loaiPhong: true, hopDong: { include: { nguoiThue: true } }, dienNuoc: true, lapRap: { include: { thietBi: true } }, nguoiLuuTruTamThoi: true },
+  async findAll() {
+    const dsPhong= await this.prisma.phong.findMany({
+      where: { isDelete: false },
+      include: 
+      { 
+        loaiPhong: true, 
+        HopDong: { 
+          where: { isDelete: false },
+         }
+      },
+    });
+    return dsPhong.map((p)=>{
+      const phong = p as any;
+      let giahientai= 0;
+      if(phong.HopDong && phong.HopDong.length>0)
+        {
+          giahientai= phong.HopDong.reduce((sum, hd)=> sum+ (hd.giaPhongThucTe || 0),0 );
+        }
+        else{
+          giahientai= phong.loaiPhong?.giaTien || 0;
+        }
+        return{
+          ...phong,
+          giahientai,
+        }
     });
   }
 
