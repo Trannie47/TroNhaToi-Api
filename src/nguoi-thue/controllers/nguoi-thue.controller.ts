@@ -44,9 +44,9 @@ export class NguoiThueController {
   //   return this.nguoiThueService.update(id, dto);
   // }
 
-  // @Delete(':idnt')
-  // @ApiOperation({ summary: 'Xóa Người Thuê' })
-  // remove(@Param('idnt', ParseIntPipe) id: number) {
-  //   return this.nguoiThueService.remove(id);
-  // }
+  @Delete(':idnt')
+  @ApiOperation({ summary: 'Xóa Người Thuê' })
+  remove(@Param('idnt', ParseIntPipe) id: number) {
+    return this.nguoiThueService.remove(id);
+  }
 }

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateNguoiThueDto } from '../dto/create-nguoi-thue.dto';
 import { UpdateNguoiThueDto } from '../dto/update-nguoi-thue.dto';
@@ -15,6 +15,7 @@ export class NguoiThueService {
   //Lấy tất cả người thuê bao gồm những người vừa thêm vào và chưa có hợp đồng nào và sắp xếp đẩy người mới thêm lên đầu
   async findAllNguoiThue(){
     return this.prisma.nguoiThue.findMany({
+      where: { isDelete: false },
       orderBy: { idnt: 'desc' },
     });
   }
@@ -59,7 +60,21 @@ export class NguoiThueService {
   }
 
   async remove(id: number) {
-    await this.findOne(id);
-    return this.prisma.nguoiThue.delete({ where: { idnt: id } });
+    const tenant= await this.prisma.nguoiThue.findUnique({
+      where: { idnt: id },
+    });
+    if (!tenant) {
+      throw new NotFoundException(`Người thuê với id ${id} không tồn tại`);
+    }
+    const hasHopDong = await this.prisma.hopDong.findFirst({
+      where: { idnt: id, isDelete: false },
+    });
+    if (hasHopDong) {
+      throw new BadRequestException(`Không thể xóa người thuê có hợp đồng đang hoạt động`);
+    }
+    return await this.prisma.nguoiThue.update({
+        where: { idnt: id },
+        data: { isDelete: true },
+    });
   }
 }
