@@ -168,7 +168,7 @@ model HoaDonTapHoa {
   isDelete      Boolean         @default(false)
   chiTietTapHoa ChiTietTapHoa[]
   nguoiThue     NguoiThue?      @relation(fields: [idnt], references: [idnt], onDelete: NoAction, onUpdate: NoAction, map: "hoadontaphoa_ibfk_1")
-  phieuThuHdTh  PhieuThuHdTh[]
+  phieuThuHdTh  PhieuThuHdTh? 
 
   @@index([idnt], map: "IDNT")
   @@map("hoadontaphoa")
@@ -193,11 +193,10 @@ model PhieuThuHdTh {
   ngayThu      DateTime?     @db.Date
   soTien       Decimal?      @db.Decimal(10, 2)
   nguoiDong    String?       @db.VarChar(255)
-  maHoaDon     String?       @db.Char(11)
+  maHoaDon     String        @unique @db.Char(11)
   isDelete     Boolean       @default(false)
-  hoaDonTapHoa HoaDonTapHoa? @relation(fields: [maHoaDon], references: [maHoaDon], onDelete: NoAction, onUpdate: NoAction, map: "phieuthuhdth_ibfk_1")
+  hoaDonTapHoa HoaDonTapHoa  @relation(fields: [maHoaDon], references: [maHoaDon], onDelete: NoAction, onUpdate: NoAction, map: "phieuthuhdth_ibfk_1") 
 
-  @@index([maHoaDon], map: "phieuthuhdth_ibfk_1")
   @@map("phieuthuhdth")
 }
 
