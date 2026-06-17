@@ -161,7 +161,7 @@ model HangHoa {
 }
 
 model HoaDonTapHoa {
-  maHoaDon      String          @id @db.Char(11)
+  maHoaDon      String          @id @db.Char(13)
   idnt          Int?            @map("IDNT")
   ngayBan       DateTime?       @db.Date
   tongTien      Decimal?        @db.Decimal(10, 2)
