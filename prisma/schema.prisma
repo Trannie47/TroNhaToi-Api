@@ -176,7 +176,7 @@ model HoaDonTapHoa {
 
 model ChiTietTapHoa {
   maChiTietHoaDon Int           @id @default(autoincrement())
-  maHoaDon        String?       @db.Char(11)
+  maHoaDon        String?       @db.Char(13)
   maHangHoa       Int?
   soLuong         Int?
   isDelete        Boolean       @default(false)
@@ -193,7 +193,7 @@ model PhieuThuHdTh {
   ngayThu      DateTime?     @db.Date
   soTien       Decimal?      @db.Decimal(10, 2)
   nguoiDong    String?       @db.VarChar(255)
-  maHoaDon     String        @unique @db.Char(11)
+  maHoaDon     String        @unique @db.Char(13)
   isDelete     Boolean       @default(false)
   hoaDonTapHoa HoaDonTapHoa  @relation(fields: [maHoaDon], references: [maHoaDon], onDelete: NoAction, onUpdate: NoAction, map: "phieuthuhdth_ibfk_1") 
 
