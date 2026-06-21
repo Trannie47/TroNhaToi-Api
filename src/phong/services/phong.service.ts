@@ -45,7 +45,15 @@ export class PhongService {
   }
 
   create(dto: CreatePhongDto) {
-    return this.prisma.phong.create({ data: dto as any });
+    return this.prisma.phong.create({
+       data:{
+        tenPhong: dto.tenPhong,
+        trangThai: dto.trangThai,
+        moTa: dto.moTa,
+        maLoaiPhong: dto.maLoaiPhong,
+        isDelete: false,
+       } 
+      });
   }
 
   async update(id: number, dto: UpdatePhongDto) {
