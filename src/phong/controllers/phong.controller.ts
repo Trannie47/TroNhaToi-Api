@@ -18,6 +18,13 @@ export class PhongController {
     return this.phongService.create(dto);
   }
 
+  @Get(':phongId/getListNguoiThue')
+  @ApiOperation({ summary: 'Danh sách người thuê theo ID phòng' })
+  @ApiParam({ name: 'phongId', description: 'ID của Phòng' })
+  async getListNguoiThueByPhongId(@Param('phongId', ParseIntPipe) phongId: number) {
+    return this.phongService.getListNguoiThueByPhongId(phongId);
+  }
+
   @Get('findAll')
   @ApiOperation({ summary: 'Danh sách Phòng' })
   findAll() {

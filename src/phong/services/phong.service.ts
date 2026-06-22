@@ -35,6 +35,28 @@ export class PhongService {
     });
   }
 
+  async getListNguoiThueByPhongId(phongId: number) {
+    const phongWithHopDong = await this.prisma.phong.findFirst({
+      where: {
+        phongId: phongId,
+        isDelete: false,
+      },
+      include:{
+        HopDong: {
+          where: { isDelete: false },
+         include:{
+          nguoithue: true,
+         }
+        }
+      }
+    });
+    if (!phongWithHopDong || !phongWithHopDong.HopDong) {
+      return [];
+    }
+    const dsNguoiThue = phongWithHopDong.HopDong.map(hd => hd.nguoithue).filter(nt => nt !== null);
+    return dsNguoiThue;
+  }
+
   async findOne(id: number) {
     const item = await this.prisma.phong.findUnique({
       where: { phongId: id },
