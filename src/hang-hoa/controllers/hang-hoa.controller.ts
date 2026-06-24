@@ -19,7 +19,7 @@ export class HangHoaController {
     return this.hangHoaService.create(dto);
   }
 
-  @Get()
+  @Get('findAll')
   @ApiOperation({ summary: 'Danh sách Hàng Hóa' })
   findAll() {
     return this.hangHoaService.findAll();
