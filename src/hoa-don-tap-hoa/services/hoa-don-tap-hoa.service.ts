@@ -8,7 +8,7 @@ import { generateId } from '../../common/utils/generate-id.util';
 
 @Injectable()
 export class HoaDonTapHoaService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   findAll() {
     return this.prisma.hoaDonTapHoa.findMany({
@@ -112,6 +112,24 @@ export class HoaDonTapHoaService {
         ? { skip: 1, cursor: { maHoaDon: id } }
         : {}),
     });
+  }
+
+  //Get Danh sách Hàng Hoá Model 
+  async findDSHangHoaModel() {
+    const data = await this.prisma.hoaDonTapHoa.findMany({
+      where: { isDelete: false },
+      include: {
+        nguoiThue: { select: { hoTen: true } },
+        chiTietTapHoa: { include: { hangHoa: true } },
+        phieuThuHdTh: true,
+      },
+    });
+
+    return data.map(({ nguoiThue, phieuThuHdTh, ...hoaDon }) => ({
+      ...hoaDon,                              // HoaDon.*
+      ...phieuThuHdTh,                        // PhieuThuHdTh.*
+      tenNguoiMua: nguoiThue?.hoTen ?? null,  // NguoiThue.hoTen as tenNguoiMua
+    }));
   }
 
 }
