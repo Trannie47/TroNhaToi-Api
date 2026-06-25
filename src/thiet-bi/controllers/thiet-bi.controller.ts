@@ -19,7 +19,7 @@ export class ThietBiController {
     return this.thietBiService.create(dto);
   }
 
-  @Get()
+  @Get('findAll')
   @ApiOperation({ summary: 'Danh sách Thiết Bị' })
   findAll() {
     return this.thietBiService.findAll();
