@@ -4,31 +4,109 @@ import { CreateHoaDonTapHoaDto } from '../dto/create-hoa-don-tap-hoa.dto';
 import { UpdateHoaDonTapHoaDto } from '../dto/update-hoa-don-tap-hoa.dto';
 import { SearchHoaDonTapHoaDto } from '../dto/search-hoa-don-tap-hoa.dto';
 import { StatisticsHoaDonTapHoaDto } from '../dto/statistics-hoa-don-tap-hoa.dto';
-import { generateId } from '../../common/utils/generate-id.util';
 
 @Injectable()
 export class HoaDonTapHoaService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.hoaDonTapHoa.findMany({
+  
+
+  private readonly includeAll = {
+    nguoiThue: true,
+    chiTietTapHoa: { where: { isDelete: false }, include: { hangHoa: true } },
+    phieuThuHdTh: true,
+  } as const;
+
+  /** Chuyển raw Prisma record sang shape mà app Flutter mong đợi */
+  private transform(raw: any) {
+    const { nguoiThue, chiTietTapHoa = [], phieuThuHdTh, ...rest } = raw;
+
+    const dsHangHoa = chiTietTapHoa
+      .filter((ct: any) => ct.hangHoa != null)
+      .map((ct: any) => ct.hangHoa);
+
+    // soLuong: { [maHangHoa]: soLuong } — app dùng để hiển thị số lượng từng mặt hàng
+    const soLuong: Record<number, number> = {};
+    for (const ct of chiTietTapHoa) {
+      if (ct.maHangHoa != null && ct.soLuong != null) {
+        soLuong[ct.maHangHoa] = ct.soLuong;
+      }
+    }
+
+    return {
+      ...rest,
+      tenNguoiMua: nguoiThue?.hoTen ?? null,
+      phieuThu: phieuThuHdTh ?? null,
+      dsHangHoa,
+      soLuong,
+    };
+  }
+
+  async findAll() {
+    const rows = await this.prisma.hoaDonTapHoa.findMany({
       where: { isDelete: false },
-      include: { nguoiThue: true, chiTietTapHoa: { include: { hangHoa: true } }, phieuThuHdTh: true },
+      include: this.includeAll,
     });
+    return rows.map((r) => this.transform(r));
   }
 
   async findOne(id: string) {
     const item = await this.prisma.hoaDonTapHoa.findFirst({
       where: { maHoaDon: id, isDelete: false },
-      include: { nguoiThue: true, chiTietTapHoa: { include: { hangHoa: true } }, phieuThuHdTh: true },
+      include: this.includeAll,
     });
     if (!item) throw new NotFoundException(`HoaDonTapHoa với id ${id} không tồn tại`);
-    return item;
+    return this.transform(item);
   }
 
-  create(dto: CreateHoaDonTapHoaDto) {
-    return this.prisma.hoaDonTapHoa.create({
-      data: { maHoaDon: generateId('TH', 11), ...dto } as any,
+  private async generateMaHoaDon(): Promise<string> {
+    const now = new Date();
+    const dateStr =
+      now.getFullYear().toString() +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      String(now.getDate()).padStart(2, '0');
+    const prefix = `TH${dateStr}`;
+
+    const last = await this.prisma.hoaDonTapHoa.findFirst({
+      where: { maHoaDon: { startsWith: prefix } },
+      orderBy: { maHoaDon: 'desc' },
+      select: { maHoaDon: true },
+    });
+
+    const nextStt = last ? parseInt(last.maHoaDon.slice(-3), 10) + 1 : 1;
+    return `${prefix}${String(nextStt).padStart(3, '0')}`;
+  }
+
+  async create(dto: CreateHoaDonTapHoaDto) {
+    const maHoaDon = await this.generateMaHoaDon();
+    const { chiTietTapHoa, phieuThuHdTh, ...hoaDonData } = dto;
+
+    return this.prisma.$transaction(async (tx) => {
+      const hoaDon = await tx.hoaDonTapHoa.create({
+        data: { maHoaDon, ...hoaDonData } as any,
+      });
+
+      if (chiTietTapHoa?.length) {
+        await tx.chiTietTapHoa.createMany({
+          data: chiTietTapHoa.map((ct) => ({
+            maHoaDon,
+            maHangHoa: ct.maHangHoa,
+            soLuong: ct.soLuong,
+          })),
+        });
+      }
+
+      if (phieuThuHdTh) {
+        await tx.phieuThuHdTh.create({
+          data: { maHoaDon, ...phieuThuHdTh } as any,
+        });
+      }
+
+      const result = await tx.hoaDonTapHoa.findFirst({
+        where: { maHoaDon },
+        include: this.includeAll,
+      });
+      return this.transform(result);
     });
   }
 
@@ -131,5 +209,6 @@ export class HoaDonTapHoaService {
       tenNguoiMua: nguoiThue?.hoTen ?? null,  // NguoiThue.hoTen as tenNguoiMua
     }));
   }
+
 
 }
