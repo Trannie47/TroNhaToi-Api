@@ -17,6 +17,12 @@ export class HoaDonTapHoaService {
     phieuThuHdTh: true,
   } as const;
 
+
+  private readonly selectAll = {
+    nguoiThue: true,
+    phieuThuHdTh: true,
+  } as const;
+
   /** Chuyển raw Prisma record sang shape mà app Flutter mong đợi */
   private transform(raw: any) {
     const { nguoiThue, chiTietTapHoa = [], phieuThuHdTh, ...rest } = raw;
@@ -45,7 +51,7 @@ export class HoaDonTapHoaService {
   async findAll() {
     const rows = await this.prisma.hoaDonTapHoa.findMany({
       where: { isDelete: false },
-      include: this.includeAll,
+      include: this.selectAll,
     });
     return rows.map((r) => this.transform(r));
   }
@@ -53,7 +59,7 @@ export class HoaDonTapHoaService {
   async findOne(id: string) {
     const item = await this.prisma.hoaDonTapHoa.findFirst({
       where: { maHoaDon: id, isDelete: false },
-      include: this.includeAll,
+      include: this.selectAll,
     });
     if (!item) throw new NotFoundException(`HoaDonTapHoa với id ${id} không tồn tại`);
     return this.transform(item);
@@ -198,7 +204,6 @@ export class HoaDonTapHoaService {
       where: { isDelete: false },
       include: {
         nguoiThue: { select: { hoTen: true } },
-        chiTietTapHoa: { include: { hangHoa: true } },
         phieuThuHdTh: true,
       },
     });
