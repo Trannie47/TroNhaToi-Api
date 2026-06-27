@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreatePhongDto } from '../dto/create-phong.dto';
 import { UpdatePhongDto } from '../dto/update-phong.dto';
@@ -80,7 +80,19 @@ export class PhongService {
 
   async update(id: number, dto: UpdatePhongDto) {
     await this.findOne(id);
-    return this.prisma.phong.update({ where: { phongId: id }, data: dto as any });
+    const roomCurrent = await this.prisma.phong.findUnique({
+       where: { phongId: id },
+      });
+      if(!roomCurrent) throw new NotFoundException(`Phong với id ${id} không tồn tại`);
+    return this.prisma.phong.update({ 
+      where: { phongId: id }, 
+      data: {
+        tenPhong: dto.tenPhong,
+        trangThai: dto.trangThai,
+        moTa: dto.moTa,
+        maLoaiPhong: dto.maLoaiPhong,
+      }, 
+    });
   }
 
   async remove(id: number) {
