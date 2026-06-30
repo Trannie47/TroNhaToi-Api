@@ -7,9 +7,9 @@ import { StatisticsHoaDonTapHoaDto } from '../dto/statistics-hoa-don-tap-hoa.dto
 
 @Injectable()
 export class HoaDonTapHoaService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
-  
+
 
   private readonly includeAll = {
     nguoiThue: true,
@@ -198,20 +198,28 @@ export class HoaDonTapHoaService {
     });
   }
 
-  //Get Danh sách Hàng Hoá Model 
+  // Get Danh sách Hàng Hoá Model
   async findDSHangHoaModel() {
     const data = await this.prisma.hoaDonTapHoa.findMany({
-      where: { isDelete: false },
+      where: {
+        isDelete: false,
+      },
       include: {
-        nguoiThue: { select: { hoTen: true } },
+        nguoiThue: {
+          select: {
+            hoTen: true,
+          },
+        },
         phieuThuHdTh: true,
       },
     });
 
     return data.map(({ nguoiThue, phieuThuHdTh, ...hoaDon }) => ({
-      ...hoaDon,                              // HoaDon.*
-      ...phieuThuHdTh,                        // PhieuThuHdTh.*
-      tenNguoiMua: nguoiThue?.hoTen ?? null,  // NguoiThue.hoTen as tenNguoiMua
+      hoaDon,
+
+      phieuThu: phieuThuHdTh,
+
+      tenNguoiMua: nguoiThue?.hoTen ?? null,
     }));
   }
 
