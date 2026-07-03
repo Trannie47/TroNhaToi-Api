@@ -97,6 +97,6 @@ export class PhongService {
 
   async remove(id: number) {
     await this.findOne(id);
-    return this.prisma.phong.delete({ where: { phongId: id } });
+    return this.prisma.phong.update({ where: { phongId: id }, data: { isDelete: true } });
   }
 }
