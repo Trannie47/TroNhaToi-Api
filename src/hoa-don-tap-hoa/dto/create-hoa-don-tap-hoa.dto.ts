@@ -62,7 +62,7 @@ export class CreateHoaDonTapHoaDto {
   @Type(() => CreateChiTietTapHoaInlineDto)
   chiTietTapHoa?: CreateChiTietTapHoaInlineDto[];
 
-  @ApiPropertyOptional({ description: 'Phiếu thu (nếu có)', type: CreatePhieuThuInlineDto })
+  @ApiPropertyOptional({ description: 'Phiếu thu (nếu có). Mỗi lần tạo/sửa hóa đơn kèm phiếu thu sẽ ghi thêm 1 phiếu thu mới — 1 hóa đơn có thể có nhiều phiếu thu (thu nhiều lần).', type: CreatePhieuThuInlineDto })
   @IsOptional()
   @ValidateNested()
   @Type(() => CreatePhieuThuInlineDto)
