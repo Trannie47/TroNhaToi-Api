@@ -11,8 +11,22 @@ export class HopDongService {
 
   findAll() {
     return this.prisma.hopDong.findMany({
-      where: { isDelete: false },
-      //include: { nguoiThue: true, phong: { include: { loaiPhong: true } }, hoaDonPhong: true },
+      where: {isDelete: false},
+      include: { 
+        phong: { 
+          select:{
+            tenPhong: true,
+          }
+         },
+         nguoithue: {
+          select:{
+            hoTen: true,
+          }
+         }
+      },
+      orderBy: {
+        ngayKy: 'desc',
+      },
     });
   }
 

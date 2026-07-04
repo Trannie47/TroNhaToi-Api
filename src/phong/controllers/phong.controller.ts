@@ -7,7 +7,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @ApiTags('Phòng')
 @ApiBearerAuth()
-//@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('phong')
 export class PhongController {
   constructor(private readonly phongService: PhongService) {}

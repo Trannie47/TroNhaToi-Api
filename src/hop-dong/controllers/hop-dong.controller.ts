@@ -19,7 +19,7 @@ export class HopDongController {
     return this.hopDongService.create(dto);
   }
 
-  @Get()
+  @Get('findAll')
   @ApiOperation({ summary: 'Danh sách Hợp Đồng' })
   findAll() {
     return this.hopDongService.findAll();
