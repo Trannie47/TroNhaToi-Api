@@ -154,8 +154,8 @@ model HangHoa {
   giaNhap       Decimal?        @db.Decimal(10, 2)
   giaBan        Decimal?        @db.Decimal(10, 2)
   isDelete      Boolean         @default(false)
+  donViTinh     String?         @db.VarChar(255)
   chiTietTapHoa ChiTietTapHoa[]
-
   @@map("hanghoa")
 }
 
