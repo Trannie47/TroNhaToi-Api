@@ -51,6 +51,7 @@ model NguoiThue {
   queQuan            String?              @db.VarChar(255)
   ghiChu             String?              @db.Text
   gioiTinh           Boolean              @default(true)
+  trangThai          Int                  @default(0)     /// 0 = Chưa thuê (mới tạo), 1 = Đang thuê hoạt động, 2 = Đã dọn đi
   isDelete           Boolean              @default(false)
   hoaDonTapHoa       HoaDonTapHoa[]
   HopDong            HopDong[]
