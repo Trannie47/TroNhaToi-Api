@@ -25,6 +25,13 @@ export class HopDongController {
     return this.hopDongService.findAll();
   }
 
+// laays danh sách phòng available cho việc tạo hợp đồng
+  @Get('roomsAvailable')
+  @ApiOperation({ summary: 'Danh sách phòng available cho việc tạo hợp đồng' })
+  getRoomsAvailableForContract() {
+    return this.hopDongService.getRoomsAvailableForContract();
+  }
+
   @Get('search')
   @ApiOperation({ summary: 'Tìm kiếm theo mã hợp đồng (có phân trang)' })
   search(@Query() dto: SearchHopDongDto) {
