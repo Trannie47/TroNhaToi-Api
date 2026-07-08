@@ -7,7 +7,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @ApiTags('Người Thuê')
 @ApiBearerAuth()
-//@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('nguoi-thue')
 export class NguoiThueController {
   constructor(private readonly nguoiThueService: NguoiThueService) {}
@@ -18,19 +18,18 @@ export class NguoiThueController {
     return this.nguoiThueService.create(dto);
   }
 
-  // @Get()
-  // @ApiOperation({ summary: 'Danh sách Người Thuê' })
-  // findAll() {
-  //   return this.nguoiThueService.findAll();
-  // }
-
   @Get('findall')
-  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Danh sách tất cả Người Thuê (bao gồm người mới thêm chưa có hợp đồng)' })
   findAllNguoiThue() {
     return this.nguoiThueService.findAllNguoiThue();
   }
 
+  @Get('nguoiThueAvailableForContract')
+  @ApiOperation({ summary: 'Lấy danh sách các Người Thuê (chưa có hợp đồng và đã có hợp đồng) để tạo hợp đồng' })
+  async getNguoiThueAvailableForContract() {
+    return this.nguoiThueService.getNguoiThueAvailableForContract();
+  }
+   
   @Get(':idnt/listRoomNguoiThue')
   @ApiOperation({ summary: 'Chi tiết Người Thuê' })
   @ApiParam({ name: 'idnt', description: 'ID của Người Thuê' })
