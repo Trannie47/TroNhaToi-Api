@@ -56,4 +56,9 @@ export class PhieuThuHdThController {
   remove(@Param('maPhieuThu', ParseIntPipe) id: number) {
     return this.phieuThuHdThService.remove(id);
   }
+
+  @Get('hoa-don/:maHoaDon')
+  findByMaHoaDon(@Param('maHoaDon') maHoaDon: string) {
+    return this.phieuThuHdThService.findByMaHoaDon(maHoaDon);
+  }
 }

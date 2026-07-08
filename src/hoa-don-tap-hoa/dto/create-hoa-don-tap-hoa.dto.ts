@@ -23,6 +23,10 @@ export class CreateChiTietTapHoaInlineDto {
 }
 
 export class CreatePhieuThuInlineDto {
+  @IsOptional()
+  @IsNumber()
+  maPhieuThu?: number; 
+
   @ApiPropertyOptional({ description: 'Ngày thu (YYYY-MM-DD)' })
   @IsOptional()
   @IsString()
@@ -66,7 +70,7 @@ export class CreateHoaDonTapHoaDto {
   @IsOptional()
   @ValidateNested()
   @Type(() => CreatePhieuThuInlineDto)
-  phieuThuHdTh?: CreatePhieuThuInlineDto;
+  phieuThuHdTh?: CreatePhieuThuInlineDto[];
 }
 
 export class UpdateHoaDonTapHoaDto extends PartialType(CreateHoaDonTapHoaDto) {}

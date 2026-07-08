@@ -115,9 +115,14 @@ export class HoaDonTapHoaService {
         });
       }
 
-      if (phieuThuHdTh) {
-        await tx.phieuThuHdTh.create({
-          data: { maHoaDon, ...phieuThuHdTh } as any,
+      if (phieuThuHdTh?.length) {
+        await tx.phieuThuHdTh.createMany({
+          data: phieuThuHdTh.map((pt) => ({
+            maHoaDon,
+            ngayThu: pt.ngayThu,
+            soTien: pt.soTien,
+            nguoiDong: pt.nguoiDong,
+          })),
         });
       }
 
@@ -138,34 +143,37 @@ export class HoaDonTapHoaService {
   // ghi thêm 1 phiếu thu mới (không upsert/ghi đè phiếu thu cũ).
   async update(id: string, dto: UpdateHoaDonTapHoaDto) {
     await this.findOne(id);
+
     const { chiTietTapHoa, phieuThuHdTh, ...hoaDonData } = dto;
 
     return this.prisma.$transaction(async (tx) => {
-      if (chiTietTapHoa) {
-        await tx.chiTietTapHoa.updateMany({
-          where: { maHoaDon: id, isDelete: false },
-          data: { isDelete: true },
-        });
 
-        if (chiTietTapHoa.length) {
-          await tx.chiTietTapHoa.createMany({
-            data: chiTietTapHoa.map((ct) => ({
+      // Thêm các phiếu thu mới (không xóa phiếu cũ)
+      if (phieuThuHdTh?.length) {
+        for (const pt of phieuThuHdTh) {
+          if (pt.maPhieuThu) continue; // đã có mã -> bỏ qua, không tạo lại
+
+          await tx.phieuThuHdTh.create({
+            data: {
               maHoaDon: id,
-              maHangHoa: ct.maHangHoa,
-              soLuong: ct.soLuong,
-            })),
+              ngayThu: pt.ngayThu,
+              soTien: pt.soTien,
+              nguoiDong: pt.nguoiDong,
+            },
           });
         }
       }
 
       return tx.hoaDonTapHoa.update({
-        where: { maHoaDon: id },
+        where: {
+          maHoaDon: id,
+        },
         data: {
           idnt: hoaDonData.idnt,
           ngayBan: hoaDonData.ngayBan,
           tongTien: hoaDonData.tongTien,
-          phieuThuHdTh: phieuThuHdTh ? { create: phieuThuHdTh } : undefined,
         },
+        include: this.includeAll,
       });
     });
   }
@@ -267,10 +275,10 @@ export class HoaDonTapHoaService {
       hoaDon,
 
       // app Flutter đọc field `phieuThu` (object đơn, phiếu thu mới nhất)
-      phieuThu: this.latestPhieuThu(phieuThuHdTh),
-      dsPhieuThu: phieuThuHdTh,
+      // phieuThu: this.latestPhieuThu(phieuThuHdTh),
+      // dsPhieuThu: phieuThuHdTh,
       daThu: phieuThuHdTh.reduce((sum: number, pt: any) => sum + Number(pt.soTien ?? 0), 0),
-
+      tongtien: Number(hoaDon.tongTien ?? 0),
       tenNguoiMua: nguoiThue?.hoTen ?? null,
     }));
   }

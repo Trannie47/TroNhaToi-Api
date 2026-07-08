@@ -6,7 +6,7 @@ import { SearchPhieuThuHdThDto } from '../dto/search-phieu-thu-hdth.dto';
 
 @Injectable()
 export class PhieuThuHdThService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   findAll() {
     return this.prisma.phieuThuHdTh.findMany({
@@ -66,6 +66,15 @@ export class PhieuThuHdThService {
       ...(id !== undefined && id !== null
         ? { skip: 1, cursor: { maPhieuThu: id } }
         : {}),
+    });
+  }
+
+  async findByMaHoaDon(maHoaDon: string) {
+    return this.prisma.phieuThuHdTh.findMany({
+      where: {
+        maHoaDon: maHoaDon,
+      },
+      
     });
   }
 
