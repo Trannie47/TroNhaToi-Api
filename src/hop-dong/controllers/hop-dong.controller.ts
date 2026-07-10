@@ -1,22 +1,37 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiQuery, ApiConsumes } from '@nestjs/swagger';
 import { HopDongService } from '../services/hop-dong.service';
 import { CreateHopDongDto } from '../dto/create-hop-dong.dto';
 import { UpdateHopDongDto } from '../dto/update-hop-dong.dto';
 import { SearchHopDongDto } from '../dto/search-hop-dong.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { FilesInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Hợp Đồng')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('hop-dong')
 export class HopDongController {
-  constructor(private readonly hopDongService: HopDongService) {}
+  constructor(
+    private readonly hopDongService: HopDongService,
+    private readonly cloudinaryService: CloudinaryService
+  ) {}
 
-  @Post()
+  @Post('createContract')
   @ApiOperation({ summary: 'Tạo Hợp Đồng mới' })
-  create(@Body() dto: CreateHopDongDto) {
-    return this.hopDongService.create(dto);
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FilesInterceptor('files'))
+  async create(@Body() body: CreateHopDongDto, 
+    @UploadedFiles() files: Array<Express.Multer.File>) {
+      const listUrlImage : string[] = [];
+      if(files && files.length > 0){
+        for(const file of files){
+          const result = await this.cloudinaryService.uploadImage(file);
+          listUrlImage.push(result.secure_url);
+        } 
+      }
+    return this.hopDongService.create(body, listUrlImage);
   }
 
   @Get('findAll')

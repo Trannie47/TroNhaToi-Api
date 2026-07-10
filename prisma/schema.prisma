@@ -71,7 +71,7 @@ model HopDong {
   giaPhongThucTe Decimal?      @db.Decimal(10, 2)
   trangThai      Int?          @default(0)
   ghiChu         String?       @db.Text
-  anhHopDong     String?       @db.VarChar(255)
+  anhHopDong     String?       @db.Text
   isDelete       Boolean       @default(false)
   hoadonphong    HoaDonPhong[]
   nguoithue      NguoiThue     @relation(fields: [idnt], references: [idnt], onUpdate: Restrict, map: "HopDong_Fk1")

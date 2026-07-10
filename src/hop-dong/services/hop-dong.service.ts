@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateHopDongDto } from '../dto/create-hop-dong.dto';
 import { UpdateHopDongDto } from '../dto/update-hop-dong.dto';
@@ -57,6 +57,87 @@ export class HopDongService {
     }))
   }
 
+  async create(dto: CreateHopDongDto, listUrlImage: string[]) {
+    // Lấy thông tin phòng để lấy tên phòng làm id hợp đồng
+    const infoPhong = await this.prisma.phong.findUnique({
+      where: { phongId: dto.phongId },
+    });
+
+    if (!infoPhong) {
+      throw new BadRequestException('Không tìm thấy phòng thuê hợp lệ để lập hợp đồng.');
+    }
+
+    // Đếm số lượng hợp đồng cũ của riêng phòng này để lấy làm số đuôi của mã hợp đồng
+    const countHopDongCuaPhong = await this.prisma.hopDong.count({
+      where: { phongId: dto.phongId },
+    });
+    const soThuTuNext = countHopDongCuaPhong + 1; 
+
+    // dùng transaction để đảm bảo tính toàn vẹn dữ liệu, nếu có lỗi thì nó tự rollback
+    return this.prisma.$transaction(async (prisma) => {
+      try {
+        const homNay = new Date();
+        homNay.setHours(0, 0, 0, 0);
+        
+        const ngayKy = dto.ngayKy ? new Date(dto.ngayKy) : new Date();
+        ngayKy.setHours(0, 0, 0, 0);
+
+        let trangThaiPhong = 0; // Mặc định là 0 (Khởi tạo
+        if (ngayKy <= homNay) {
+          trangThaiPhong = 1; // Nếu ngày ký <= hôm nay thì trạng thái là 1 (Đang hiệu lực)
+        }
+
+        const chuoiImageConTract = listUrlImage.length > 0 ? listUrlImage.join(',') : ''; 
+
+        //Mã hợp đồng: NamThangTenPhongSoThuTu
+        const nam = ngayKy.getFullYear();
+        const thang = String(ngayKy.getMonth() + 1).padStart(2, '0');
+        const maHopDongFormat = `${nam}${thang}${infoPhong.phongId}${soThuTuNext}`;
+
+        const newHopDong = await prisma.hopDong.create({
+          data: {
+            hopDongId: maHopDongFormat,
+            idnt: dto.idnt,
+            phongId: dto.phongId,
+            ngayKy: dto.ngayKy ? new Date(dto.ngayKy) : new Date(),
+            ngayHetHan: dto.ngayHetHan ? new Date(dto.ngayHetHan) : new Date(),
+            tienCoc: dto.tienCoc ?? 0,
+            giaPhongThucTe: dto.giaPhongThucTe ?? 0,
+            trangThai: trangThaiPhong,
+            ghiChu: dto.ghiChu ?? '',
+            anhHopDong: chuoiImageConTract 
+          },
+        });
+
+        // Khi phòng có hợp đồng thì cập nhật lại trạng thái đang thuê
+        if (trangThaiPhong === 1) {
+          await prisma.phong.update({
+            where: { phongId: dto.phongId },
+            data: { trangThai: 1 }, 
+          });
+
+          // Cập nhật trạng thái người thuê sang Đang hoạt động 
+          await prisma.nguoiThue.update({
+            where: { idnt: dto.idnt },
+            data: { trangThai: 1 },
+          });
+        }
+
+        return {
+          success: true,
+          message: trangThaiPhong === 1 
+            ? 'Tạo mới và kích hoạt hợp đồng thành công!' 
+            : 'Tạo hợp đồng chờ hiệu lực thành công!',
+          data: newHopDong,
+        };
+
+      } catch (error) {
+        console.error('Lỗi hệ thống khi xử lý lưu hợp đồng:', error);
+        throw new InternalServerErrorException('Không thể hoàn tất lưu hợp đồng do lỗi hệ thống');
+      }
+    });
+  }
+
 
 
 
@@ -74,12 +155,6 @@ export class HopDongService {
     });
     if (!item) throw new NotFoundException(`HopDong với id ${id} không tồn tại`);
     return item;
-  }
-
-  create(dto: CreateHopDongDto) {
-    return this.prisma.hopDong.create({
-      data: { hopDongId: generateId('HD', 11), ...dto } as any,
-    });
   }
 
   async update(id: string, dto: UpdateHopDongDto) {
