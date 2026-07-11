@@ -73,6 +73,22 @@ export class HopDongService {
     });
     const soThuTuNext = countHopDongCuaPhong + 1; 
 
+    //Kiểm tra trùng hợp đồng
+    const hopDongTrung = await this.prisma.hopDong.findFirst({
+      where: {
+        phongId: dto.phongId,
+        idnt: dto.idnt,
+        isDelete: false,
+        trangThai: { not: 2 }, // Chặn nếu đang tồn tại HD khởi tạo (0) hoặc hiệu lực (1)
+      },
+    });
+    if (hopDongTrung) {
+      const loai = hopDongTrung.trangThai === 0 ? 'đang chờ hiệu lực' : 'đang hiệu lực';
+      throw new BadRequestException(
+        `Người thuê này đã có hợp đồng ${loai} với phòng đã chọn. Không thể tạo trùng!`
+      );
+    }
+
     // dùng transaction để đảm bảo tính toàn vẹn dữ liệu, nếu có lỗi thì nó tự rollback
     return this.prisma.$transaction(async (prisma) => {
       try {
@@ -132,6 +148,9 @@ export class HopDongService {
         };
 
       } catch (error) {
+         if (error instanceof BadRequestException || error instanceof NotFoundException) {
+            throw error;
+       }
         console.error('Lỗi hệ thống khi xử lý lưu hợp đồng:', error);
         throw new InternalServerErrorException('Không thể hoàn tất lưu hợp đồng do lỗi hệ thống');
       }
