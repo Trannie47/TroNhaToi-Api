@@ -62,7 +62,7 @@ model NguoiThue {
 }
 
 model HopDong {
-  hopDongId      String        @id @map("HopDongID") @db.Char(11)
+  hopDongId      String        @id @map("HopDongID") @db.VarChar(30)
   idnt           Int           @map("IDNT")
   phongId        Int?          @map("PhongID")
   ngayKy         DateTime?     @db.Date
@@ -100,7 +100,7 @@ model HoaDonPhong {
   maHoaDon          String              @id @db.Char(23)
   thangNam          String?             @db.VarChar(20)
   soTien            Decimal?            @db.Decimal(10, 2)
-  hopDongId         String?             @map("HopDongID") @db.Char(11)
+  hopDongId         String?             @map("HopDongID") @db.VarChar(30)
   isDelete          Boolean             @default(false)
   hopdong           HopDong?            @relation(fields: [hopDongId], references: [hopDongId], onDelete: Restrict, onUpdate: Restrict, map: "HoaDonPhong_HopDong")
   phieuThuHangThang PhieuThuHangThang[]
@@ -294,7 +294,7 @@ model ThongBao {
   tieuDe    String   @db.VarChar(255)
   noiDung   String   @db.Text
   loai      String   @db.VarChar(50)
-  hopDongId String?  @db.Char(11)
+  hopDongId String?  @db.VarChar(30)
   soNgayCon Int?
   daDoc     Boolean  @default(false)
   taoLuc    DateTime @default(now())

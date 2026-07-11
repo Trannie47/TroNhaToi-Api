@@ -105,10 +105,10 @@ export class HopDongService {
 
         const chuoiImageConTract = listUrlImage.length > 0 ? listUrlImage.join(',') : ''; 
 
-        //Mã hợp đồng: NamThangTenPhongSoThuTu
+        //Mã hợp đồng: NamThang-idPhong-SoThuTu
         const nam = ngayKy.getFullYear();
         const thang = String(ngayKy.getMonth() + 1).padStart(2, '0');
-        const maHopDongFormat = `${nam}${thang}${infoPhong.phongId}${soThuTuNext}`;
+        const maHopDongFormat = `${nam}${thang}-${infoPhong.phongId}-${soThuTuNext}`;
 
         const newHopDong = await prisma.hopDong.create({
           data: {
