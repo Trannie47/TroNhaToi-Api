@@ -9,8 +9,8 @@ import { generateId } from '../../common/utils/generate-id.util';
 export class HopDongService {
   constructor(private prisma: PrismaService) {}
   //Lấy ds  hợp đồng 
-  findAll() {
-    return this.prisma.hopDong.findMany({
+  async findAll() {
+    const  dsHopDong = await this.prisma.hopDong.findMany({
       where: {isDelete: false},
       include: { 
         phong: { 
@@ -28,6 +28,10 @@ export class HopDongService {
         ngayKy: 'desc',
       },
     });
+    return dsHopDong.map((hd)=> ({
+      ...hd,
+      anhHopDong: hd.anhHopDong ? hd.anhHopDong.split(',') : [] // Chuyển chuỗi ảnh thành mảng
+    }));
   }
   //Lấy danh sách phòng available cho việc tạo hợp đồng
   // (bao gồm phòng chưa có hợp đồng và phòng đã có hợp đồng nhưng mà số lượng nhỏ hơn mức cho phép)
