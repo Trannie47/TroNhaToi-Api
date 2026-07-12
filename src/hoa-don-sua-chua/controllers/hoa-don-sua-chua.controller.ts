@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { HoaDonSuaChuaService } from '../services/hoa-don-sua-chua.service';
 import { CreateHoaDonSuaChuaDto } from '../dto/create-hoa-don-sua-chua.dto';
@@ -33,35 +33,35 @@ export class HoaDonSuaChuaController {
   }
 
   @Get('load-balance')
-  @ApiOperation({ summary: 'Lấy 15 phần tử (cuộn tải dần theo id)' })
-  @ApiQuery({ name: 'id', required: false, description: 'ID cuối cùng đã tải, bỏ trống để lấy 15 phần tử đầu' })
+  @ApiOperation({ summary: 'Lấy 15 phần tử (cuộn tải dần theo mã)' })
+  @ApiQuery({ name: 'id', required: false, description: 'Mã hóa đơn cuối cùng đã tải, bỏ trống để lấy 15 phần tử đầu' })
   getAllLoadingBalance(@Query('id') id?: string) {
-    return this.hoaDonSuaChuaService.getAllLoadingBalance(id !== undefined ? Number(id) : undefined);
+    return this.hoaDonSuaChuaService.getAllLoadingBalance(id);
   }
 
   @Get(':maHoaDonSc')
   @ApiOperation({ summary: 'Chi tiết Hóa Đơn Sửa Chữa' })
-  @ApiParam({ name: 'maHoaDonSc', description: 'ID của Hóa Đơn Sửa Chữa' })
-  findOne(@Param('maHoaDonSc', ParseIntPipe) id: number) {
+  @ApiParam({ name: 'maHoaDonSc', description: 'Mã của Hóa Đơn Sửa Chữa' })
+  findOne(@Param('maHoaDonSc') id: string) {
     return this.hoaDonSuaChuaService.findOne(id);
   }
 
   @Patch(':maHoaDonSc')
   @ApiOperation({ summary: 'Cập nhật Hóa Đơn Sửa Chữa' })
-  update(@Param('maHoaDonSc', ParseIntPipe) id: number, @Body() dto: UpdateHoaDonSuaChuaDto) {
+  update(@Param('maHoaDonSc') id: string, @Body() dto: UpdateHoaDonSuaChuaDto) {
     return this.hoaDonSuaChuaService.update(id, dto);
   }
 
   @Patch(':maHoaDonSc/trang-thai')
   @ApiOperation({ summary: 'Cập nhật trạng thái Hóa Đơn Sửa Chữa' })
-  @ApiParam({ name: 'maHoaDonSc', description: 'ID của Hóa Đơn Sửa Chữa' })
-  updateTrangThai(@Param('maHoaDonSc', ParseIntPipe) id: number, @Body() dto: UpdateTrangThaiHoaDonSuaChuaDto) {
+  @ApiParam({ name: 'maHoaDonSc', description: 'Mã của Hóa Đơn Sửa Chữa' })
+  updateTrangThai(@Param('maHoaDonSc') id: string, @Body() dto: UpdateTrangThaiHoaDonSuaChuaDto) {
     return this.hoaDonSuaChuaService.updateTrangThai(id, dto.trangThai);
   }
 
   @Delete(':maHoaDonSc')
   @ApiOperation({ summary: 'Xóa Hóa Đơn Sửa Chữa' })
-  remove(@Param('maHoaDonSc', ParseIntPipe) id: number) {
+  remove(@Param('maHoaDonSc') id: string) {
     return this.hoaDonSuaChuaService.remove(id);
   }
 }

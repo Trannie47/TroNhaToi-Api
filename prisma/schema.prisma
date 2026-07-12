@@ -249,7 +249,7 @@ model SuaChua {
 }
 
 model HoaDonSuaChua {
-  maHoaDonSc      Int       @id @default(autoincrement()) @map("maHoaDonSC")
+  maHoaDonSc      String    @id @map("maHoaDonSC")
   trangThai       Int       @default(0) @map("TrangThai")
   giaTien         Decimal?  @db.Decimal(10, 2)
   loaiSua         Int       @default(0)

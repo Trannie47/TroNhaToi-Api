@@ -6,12 +6,12 @@ import { SearchSuaChuaDto } from '../dto/search-sua-chua.dto';
 
 @Injectable()
 export class SuaChuaService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   findAll() {
     return this.prisma.suaChua.findMany({
       where: { isDelete: false },
-    //  include: { phong: { select: { phongId: true, tenPhong: true } }, hoaDonSuaChua: true },
+      //  include: { phong: { select: { phongId: true, tenPhong: true } }, hoaDonSuaChua: true },
     });
   }
 
@@ -74,6 +74,33 @@ export class SuaChuaService {
       ...(id !== undefined && id !== null
         ? { skip: 1, cursor: { id: id } }
         : {}),
+    });
+  }
+
+  
+
+  async getByThietBi(thietBiId: number) {
+    const data = await this.prisma.suaChua.findMany({
+      where: {
+        thietBiId,
+        isDelete: false,
+      },
+      include: {
+        hoadonsuachua: true,
+      },
+      orderBy: {
+        ngaySuaChua: 'desc',
+      },
+    });
+
+    return data.sort((a, b) => {
+      const aCoHoaDon = a.hoadonsuachua != null;
+      const bCoHoaDon = b.hoadonsuachua != null;
+
+      if (aCoHoaDon == bCoHoaDon) return 0;
+
+      // Chưa có hóa đơn -> lên trước
+      return aCoHoaDon ? 1 : -1;
     });
   }
 

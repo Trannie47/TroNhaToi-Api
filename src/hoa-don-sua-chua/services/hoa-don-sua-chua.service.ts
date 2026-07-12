@@ -16,7 +16,7 @@ export class HoaDonSuaChuaService {
     });
   }
 
-  async findOne(id: number) {
+  async findOne(id: string) {
     const item = await this.prisma.hoaDonSuaChua.findFirst({
       where: { maHoaDonSc: id, isDelete: false },
       // include: { suaChua: { include: { phong: true } } },
@@ -25,16 +25,34 @@ export class HoaDonSuaChuaService {
     return item;
   }
 
+  private async generateMaHoaDonSc(): Promise<string> {
+    const now = new Date();
+    const dateStr =
+      now.getFullYear().toString() +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      String(now.getDate()).padStart(2, '0');
+    const prefix = `SC${dateStr}`;
+
+    const last = await this.prisma.hoaDonSuaChua.findFirst({
+      where: { maHoaDonSc: { startsWith: prefix } },
+      orderBy: { maHoaDonSc: 'desc' },
+      select: { maHoaDonSc: true },
+    });
+
+    const nextStt = last ? parseInt(last.maHoaDonSc.slice(-3), 10) + 1 : 1;
+    return `${prefix}${String(nextStt).padStart(3, '0')}`;
+  }
+
   create(dto: CreateHoaDonSuaChuaDto) {
     return this.prisma.hoaDonSuaChua.create({ data: dto as any });
   }
 
-  async update(id: number, dto: UpdateHoaDonSuaChuaDto) {
+  async update(id: string, dto: UpdateHoaDonSuaChuaDto) {
     await this.findOne(id);
     return this.prisma.hoaDonSuaChua.update({ where: { maHoaDonSc: id }, data: dto as any });
   }
 
-  async remove(id: number) {
+  async remove(id: string) {
     await this.findOne(id);
     return this.prisma.hoaDonSuaChua.update({ where: { maHoaDonSc: id }, data: { isDelete: true } });
   }
@@ -67,7 +85,7 @@ export class HoaDonSuaChuaService {
     return { total, data };
   }
 
-  async updateTrangThai(id: number, trangThai: TrangThaiHoaDonSuaChua) {
+  async updateTrangThai(id: string, trangThai: TrangThaiHoaDonSuaChua) {
     const item = await this.findOne(id);
     if (item.trangThai === TrangThaiHoaDonSuaChua.HOAN_THANH) {
       throw new BadRequestException('Hóa đơn sửa chữa đã hoàn thành, không thể đổi trạng thái');
@@ -75,7 +93,7 @@ export class HoaDonSuaChuaService {
     return this.prisma.hoaDonSuaChua.update({ where: { maHoaDonSc: id }, data: { trangThai } });
   }
 
-  getAllLoadingBalance(id?: number) {
+  getAllLoadingBalance(id?: string) {
     return this.prisma.hoaDonSuaChua.findMany({
       where: { isDelete: false },
       orderBy: { maHoaDonSc: 'asc' },

@@ -56,4 +56,11 @@ export class SuaChuaController {
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.suaChuaService.remove(id);
   }
+
+  @Get('thiet-bi/:thietBiId')
+  async getByThietBiId(
+    @Param('thietBiId', ParseIntPipe) thietBiId: number,
+  ) {
+    return this.suaChuaService.getByThietBi(thietBiId);
+  }
 }
