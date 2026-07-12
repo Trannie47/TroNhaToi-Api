@@ -56,11 +56,11 @@ export class PhongService {
     const dsNguoiThue = phongWithHopDong.HopDong.map(hd => hd.nguoithue).filter(nt => nt !== null);
     return dsNguoiThue;
   }
-
+  // Lấy thoong tin chi tiết phòng theo ID
   async findOne(id: number) {
     const item = await this.prisma.phong.findUnique({
       where: { phongId: id },
-      // include: { loaiPhong: true, hopDong: { include: { nguoiThue: true } }, dienNuoc: true, lapRap: { include: { thietBi: true } }, nguoiLuuTruTamThoi: true },
+      include: { loaiPhong: true, HopDong: { where: { isDelete: false, trangThai: { not: 2 } } } },
     });
     if (!item) throw new NotFoundException(`Phong với id ${id} không tồn tại`);
     return item;
