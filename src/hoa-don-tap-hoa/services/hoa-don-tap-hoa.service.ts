@@ -150,18 +150,14 @@ export class HoaDonTapHoaService {
 
       // Thêm các phiếu thu mới (không xóa phiếu cũ)
       if (phieuThuHdTh?.length) {
-        for (const pt of phieuThuHdTh) {
-          if (pt.maPhieuThu) continue; // đã có mã -> bỏ qua, không tạo lại
-
-          await tx.phieuThuHdTh.create({
-            data: {
-              maHoaDon: id,
-              ngayThu: pt.ngayThu,
-              soTien: pt.soTien,
-              nguoiDong: pt.nguoiDong,
-            },
-          });
-        }
+        await tx.phieuThuHdTh.createMany({
+          data: phieuThuHdTh.map((pt) => ({
+            maHoaDon: id,
+            ngayThu: pt.ngayThu,
+            soTien: pt.soTien,
+            nguoiDong: pt.nguoiDong,
+          })),
+        });
       }
 
       return tx.hoaDonTapHoa.update({
