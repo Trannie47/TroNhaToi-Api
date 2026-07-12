@@ -34,7 +34,8 @@ export class NguoiThueService {
     const listHopDong= await this.prisma.hopDong.findMany({
       where: {
         idnt: id,
-        isDelete: false // chỉ lấy những hợp đồng còn hiệu lực
+        isDelete: false, // chỉ lấy những hợp đồng còn hiệu lực
+        trangThai: { not: 2 } // chỉ lấy những hợp đồng có trạng thái khác 2(đã dọn đi)
       },
       include: {
         phong: {
@@ -78,7 +79,7 @@ export class NguoiThueService {
       throw new NotFoundException(`Người thuê với id ${id} không tồn tại`);
     }
     const hasHopDong = await this.prisma.hopDong.findFirst({
-      where: { idnt: id, isDelete: false },
+      where: { idnt: id, isDelete: false, trangThai: { not: 2 } }, // Kiểm tra hợp đồng chưa bị xóa và chưa dọn đi
     });
     if (hasHopDong) {
       throw new BadRequestException(`Không thể xóa người thuê có hợp đồng đang hoạt động`);

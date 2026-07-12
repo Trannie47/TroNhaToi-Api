@@ -14,7 +14,7 @@ export class PhongService {
       { 
         loaiPhong: true, 
         HopDong: { 
-          where: { isDelete: false },
+          where: { isDelete: false, trangThai: 1 },
          }
       },
     });
@@ -43,7 +43,7 @@ export class PhongService {
       },
       include:{
         HopDong: {
-          where: { isDelete: false },
+          where: { isDelete: false, trangThai: { not: 2 } },
          include:{
           nguoithue: true,
          }

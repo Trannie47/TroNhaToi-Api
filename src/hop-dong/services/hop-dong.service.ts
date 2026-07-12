@@ -45,7 +45,7 @@ export class HopDongService {
         HopDong: {
           where: {
             isDelete: false,
-            trangThai: 1
+            trangThai: { not: 2 } // Chỉ tinhs những hợp đồng chưa bị xóa và chưa dọn đi
           },
         }
       }
@@ -160,17 +160,7 @@ export class HopDongService {
       }
     });
   }
-
-
-
-
-
-
-
-
-
-
-
+//--------------------------------------------------------------------------------
   async findOne(id: string) {
     const item = await this.prisma.hopDong.findFirst({
       where: { hopDongId: id, isDelete: false },
