@@ -43,8 +43,15 @@ export class HoaDonSuaChuaService {
     return `${prefix}${String(nextStt).padStart(3, '0')}`;
   }
 
-  create(dto: CreateHoaDonSuaChuaDto) {
-    return this.prisma.hoaDonSuaChua.create({ data: dto as any });
+  async create(dto: CreateHoaDonSuaChuaDto) {
+    const maHoaDonSc = await this.generateMaHoaDonSc();
+
+    return this.prisma.hoaDonSuaChua.create({
+      data: {
+        maHoaDonSc,
+        ...dto,
+      } as any,
+    });
   }
 
   async update(id: string, dto: UpdateHoaDonSuaChuaDto) {

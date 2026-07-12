@@ -12,8 +12,8 @@ import {
 export class CreateHoaDonSuaChuaInlineDto {
   @ApiPropertyOptional({ description: 'Mã hóa đơn sửa chữa' })
   @IsOptional()
-  @IsInt()
-  maHoaDonSc?: number;
+  @IsString()
+  maHoaDonSc?: string;
 
   @ApiPropertyOptional({ description: 'Trạng thái' })
   @IsOptional()

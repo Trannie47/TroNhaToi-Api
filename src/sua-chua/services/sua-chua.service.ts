@@ -6,37 +6,149 @@ import { SearchSuaChuaDto } from '../dto/search-sua-chua.dto';
 
 @Injectable()
 export class SuaChuaService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   findAll() {
     return this.prisma.suaChua.findMany({
       where: { isDelete: false },
-      //  include: { phong: { select: { phongId: true, tenPhong: true } }, hoaDonSuaChua: true },
+      // include: { phong: { select: { phongId: true, tenPhong: true } }, hoaDonSuaChua: true },
     });
   }
 
   async findOne(id: number) {
     const item = await this.prisma.suaChua.findFirst({
-      where: { id: id, isDelete: false },
-      //include: { phong: { select: { phongId: true, tenPhong: true } }, hoaDonSuaChua: true },
+      where: { id, isDelete: false },
+      // include: { phong: { select: { phongId: true, tenPhong: true } }, hoaDonSuaChua: true },
     });
-    if (!item) throw new NotFoundException(`SuaChua với id ${id} không tồn tại`);
+
+    if (!item) {
+      throw new NotFoundException(`SuaChua với id ${id} không tồn tại`);
+    }
+
     return item;
   }
 
-  create(dto: CreateSuaChuaDto) {
-    return this.prisma.suaChua.create({ data: dto as any });
+  private async generateMaHoaDonSc(): Promise<string> {
+    const now = new Date();
+    const dateStr =
+      now.getFullYear().toString() +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      String(now.getDate()).padStart(2, '0');
+    const prefix = `SC${dateStr}`;
+
+    const last = await this.prisma.hoaDonSuaChua.findFirst({
+      where: { maHoaDonSc: { startsWith: prefix } },
+      orderBy: { maHoaDonSc: 'desc' },
+      select: { maHoaDonSc: true },
+    });
+
+    const nextStt = last ? parseInt(last.maHoaDonSc.slice(-3), 10) + 1 : 1;
+    return `${prefix}${String(nextStt).padStart(3, '0')}`;
+  }
+
+  async create(dto: CreateSuaChuaDto) {
+    const { hoaDonSuaChua, ...suaChuaData } = dto;
+
+    return this.prisma.$transaction(async (tx) => {
+      const suaChua = await tx.suaChua.create({
+        data: suaChuaData as any,
+      });
+
+      if (hoaDonSuaChua) {
+        const maHoaDonSc = await this.generateMaHoaDonSc();
+
+        await tx.hoaDonSuaChua.create({
+          data: {
+            maHoaDonSc,
+            idSuaChua: suaChua.id,
+            trangThai: hoaDonSuaChua.trangThai,
+            giaTien: hoaDonSuaChua.giaTien,
+            loaiSua: hoaDonSuaChua.loaiSua,
+            ngayLapHoaDonSc: hoaDonSuaChua.ngayLapHoaDonSc,
+          } as any,
+        });
+      }
+
+      return tx.suaChua.findFirst({
+        where: {
+          id: suaChua.id,
+        },
+        include: {
+          hoadonsuachua: true,
+          phong: true,
+          thietbi: true,
+        },
+      });
+    });
   }
 
   async update(id: number, dto: UpdateSuaChuaDto) {
     await this.findOne(id);
-    return this.prisma.suaChua.update({ where: { id: id }, data: dto as any });
+
+    const { hoaDonSuaChua, ...suaChuaData } = dto;
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.suaChua.update({
+        where: {
+          id,
+        },
+        data: suaChuaData as any,
+      });
+
+      if (hoaDonSuaChua) {
+        const hd = await tx.hoaDonSuaChua.findFirst({
+          where: {
+            idSuaChua: id,
+            isDelete: false,
+          },
+        });
+
+        if (hd) {
+          await tx.hoaDonSuaChua.update({
+            where: {
+              maHoaDonSc: hd.maHoaDonSc,
+            },
+            data: {
+              trangThai: hoaDonSuaChua.trangThai,
+              giaTien: hoaDonSuaChua.giaTien,
+              loaiSua: hoaDonSuaChua.loaiSua,
+              ngayLapHoaDonSc: hoaDonSuaChua.ngayLapHoaDonSc,
+            },
+          });
+        } else {
+          const maHoaDonSc = await this.generateMaHoaDonSc();
+
+          await tx.hoaDonSuaChua.create({
+            data: {
+              maHoaDonSc,
+              idSuaChua: id,
+              trangThai: hoaDonSuaChua.trangThai,
+              giaTien: hoaDonSuaChua.giaTien,
+              loaiSua: hoaDonSuaChua.loaiSua,
+              ngayLapHoaDonSc: hoaDonSuaChua.ngayLapHoaDonSc,
+            },
+          });
+        }
+      }
+
+      return tx.suaChua.findFirst({
+        where: {
+          id,
+        },
+        include: {
+          hoadonsuachua: true,
+          phong: true,
+          thietbi: true,
+        },
+      });
+    });
   }
 
   async remove(id: number) {
     await this.findOne(id);
-    return this.prisma.suaChua.update({ where: { id: id }, data: { isDelete: true } });
+    return this.prisma.suaChua.update({ where: { id }, data: { isDelete: true } });
   }
+
   async search(req: SearchSuaChuaDto) {
     const { q, phongId, thietBiId, limit = 10, offset = 0, sortBy = 'id', sort = 'desc' } = req;
     const where: any = { isDelete: false };
@@ -71,13 +183,9 @@ export class SuaChuaService {
       where: { isDelete: false },
       orderBy: { id: 'asc' },
       take: 15,
-      ...(id !== undefined && id !== null
-        ? { skip: 1, cursor: { id: id } }
-        : {}),
+      ...(id !== undefined && id !== null ? { skip: 1, cursor: { id } } : {}),
     });
   }
-
-  
 
   async getByThietBi(thietBiId: number) {
     const data = await this.prisma.suaChua.findMany({
@@ -97,11 +205,12 @@ export class SuaChuaService {
       const aCoHoaDon = a.hoadonsuachua != null;
       const bCoHoaDon = b.hoadonsuachua != null;
 
-      if (aCoHoaDon == bCoHoaDon) return 0;
+      if (aCoHoaDon === bCoHoaDon) {
+        return 0;
+      }
 
       // Chưa có hóa đơn -> lên trước
       return aCoHoaDon ? 1 : -1;
     });
   }
-
 }
