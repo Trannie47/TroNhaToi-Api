@@ -10,7 +10,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @Controller('phong')
 export class PhongController {
-  constructor(private readonly phongService: PhongService) {}
+  constructor(private readonly phongService: PhongService) { }
 
   @Post()
   @ApiOperation({ summary: 'Tạo Phòng mới' })
@@ -48,5 +48,12 @@ export class PhongController {
   @ApiOperation({ summary: 'Xóa Phòng' })
   remove(@Param('phongId', ParseIntPipe) id: number) {
     return this.phongService.remove(id);
+  }
+
+  @Get('thiet-bi/:thietBiId')
+  @ApiOperation({ summary: 'Lấy phòng theo mã thiết bị (qua bảng lắp ráp)' })
+  @ApiParam({ name: 'thietBiId', description: 'ID của thiết bị' })
+  getPhongByThietBiId(@Param('thietBiId', ParseIntPipe) thietBiId: number) {
+    return this.phongService.getPhongByThietBiId(thietBiId);
   }
 }

@@ -6,7 +6,7 @@ import { SearchSuaChuaDto } from '../dto/search-sua-chua.dto';
 
 @Injectable()
 export class SuaChuaService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   findAll() {
     return this.prisma.suaChua.findMany({
@@ -88,34 +88,23 @@ export class SuaChuaService {
     const { hoaDonSuaChua, ...suaChuaData } = dto;
 
     return this.prisma.$transaction(async (tx) => {
+      // Cập nhật sửa chữa
       await tx.suaChua.update({
-        where: {
-          id,
-        },
-        data: suaChuaData as any,
+        where: { id },
+        data: suaChuaData,
       });
 
-      if (hoaDonSuaChua) {
-        const hd = await tx.hoaDonSuaChua.findFirst({
+      // Có gửi hóa đơn mới xử lý
+      if (hoaDonSuaChua != null) {
+        const hoaDon = await tx.hoaDonSuaChua.findFirst({
           where: {
             idSuaChua: id,
             isDelete: false,
           },
         });
 
-        if (hd) {
-          await tx.hoaDonSuaChua.update({
-            where: {
-              maHoaDonSc: hd.maHoaDonSc,
-            },
-            data: {
-              trangThai: hoaDonSuaChua.trangThai,
-              giaTien: hoaDonSuaChua.giaTien,
-              loaiSua: hoaDonSuaChua.loaiSua,
-              ngayLapHoaDonSc: hoaDonSuaChua.ngayLapHoaDonSc,
-            },
-          });
-        } else {
+        if (hoaDon == null) {
+          // Chưa có -> thêm mới
           const maHoaDonSc = await this.generateMaHoaDonSc();
 
           await tx.hoaDonSuaChua.create({
@@ -128,13 +117,24 @@ export class SuaChuaService {
               ngayLapHoaDonSc: hoaDonSuaChua.ngayLapHoaDonSc,
             },
           });
+        } else {
+          // Đã có -> cập nhật
+          await tx.hoaDonSuaChua.update({
+            where: {
+              maHoaDonSc: hoaDon.maHoaDonSc,
+            },
+            data: {
+              trangThai: hoaDonSuaChua.trangThai,
+              giaTien: hoaDonSuaChua.giaTien,
+              loaiSua: hoaDonSuaChua.loaiSua,
+              ngayLapHoaDonSc: hoaDonSuaChua.ngayLapHoaDonSc,
+            },
+          });
         }
       }
 
       return tx.suaChua.findFirst({
-        where: {
-          id,
-        },
+        where: { id },
         include: {
           hoadonsuachua: true,
           phong: true,
@@ -195,22 +195,32 @@ export class SuaChuaService {
       },
       include: {
         hoadonsuachua: true,
+        phong: {
+          select: {
+            tenPhong: true,
+          },
+        },
       },
       orderBy: {
         ngaySuaChua: 'desc',
       },
     });
 
-    return data.sort((a, b) => {
-      const aCoHoaDon = a.hoadonsuachua != null;
-      const bCoHoaDon = b.hoadonsuachua != null;
+    return data
+      .sort((a, b) => {
+        const aCoHoaDon = a.hoadonsuachua != null;
+        const bCoHoaDon = b.hoadonsuachua != null;
 
-      if (aCoHoaDon === bCoHoaDon) {
-        return 0;
-      }
+        if (aCoHoaDon === bCoHoaDon) {
+          return 0;
+        }
 
-      // Chưa có hóa đơn -> lên trước
-      return aCoHoaDon ? 1 : -1;
-    });
+        // Chưa có hóa đơn lên trước
+        return aCoHoaDon ? 1 : -1;
+      })
+      .map(({ phong, ...item }) => ({
+        ...item,
+        tenPhong: phong?.tenPhong,
+      }));
   }
 }
