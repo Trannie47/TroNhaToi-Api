@@ -16,6 +16,11 @@ export class HopDongService {
         phong: { 
           select:{
             tenPhong: true,
+            loaiPhong:{
+              select:{
+                giaTien: true,
+              }
+            }
           }
          },
          nguoithue: {
@@ -62,8 +67,15 @@ export class HopDongService {
   }
 
   async create(dto: CreateHopDongDto, listUrlImage: string[]) {
-    // Lấy thông tin phòng để lấy tên phòng làm id hợp đồng
-    const infoPhong = await this.prisma.phong.findUnique({
+    // dùng transaction để đảm bảo tính toàn vẹn dữ liệu, nếu có lỗi thì nó tự rollback
+    return await this.prisma.$transaction(async (prisma) => {
+      return await this._createHopDong(prisma, dto, listUrlImage);
+  });
+  }
+  //Tạo 1 hàm chung như này để có thể dùng chung, đặc biết trong cái update hợp đồng, vì nếu ko truyền prisma vàodungf chung thì trong update sẽ có tới 2 transaction, mà trong 1 transaction thì ko thể gọi transaction khác được, nên phải dùng chung 1 transaction
+  private async _createHopDong(prisma: any, dto: CreateHopDongDto, listUrlImage: string[]){
+     // Lấy thông tin phòng để lấy tên phòng làm id hợp đồng
+    const infoPhong = await prisma.phong.findUnique({
       where: { phongId: dto.phongId },
     });
 
@@ -72,13 +84,13 @@ export class HopDongService {
     }
 
     // Đếm số lượng hợp đồng cũ của riêng phòng này để lấy làm số đuôi của mã hợp đồng
-    const countHopDongCuaPhong = await this.prisma.hopDong.count({
+    const countHopDongCuaPhong = await prisma.hopDong.count({
       where: { phongId: dto.phongId },
     });
     const soThuTuNext = countHopDongCuaPhong + 1; 
 
     //Kiểm tra trùng hợp đồng
-    const hopDongTrung = await this.prisma.hopDong.findFirst({
+    const hopDongTrung = await prisma.hopDong.findFirst({
       where: {
         phongId: dto.phongId,
         idnt: dto.idnt,
@@ -92,9 +104,7 @@ export class HopDongService {
         `Người thuê này đã có hợp đồng ${loai} với phòng đã chọn. Không thể tạo trùng!`
       );
     }
-
-    // dùng transaction để đảm bảo tính toàn vẹn dữ liệu, nếu có lỗi thì nó tự rollback
-    return this.prisma.$transaction(async (prisma) => {
+   
       try {
         const homNay = new Date();
         homNay.setHours(0, 0, 0, 0);
@@ -158,21 +168,64 @@ export class HopDongService {
         console.error('Lỗi hệ thống khi xử lý lưu hợp đồng:', error);
         throw new InternalServerErrorException('Không thể hoàn tất lưu hợp đồng do lỗi hệ thống');
       }
+    
+  }
+  //Update hợp đồng(update nhưng thực chất là set trạng thái hợp đồng cũ thành hết hiệu lực và tạo mới hợp đồng với thông tin mới)
+  async update(id: string, dto: UpdateHopDongDto,listUrlImage: string[]) {
+    const existingHopDong = await this.prisma.hopDong.findFirst({
+      where: { hopDongId: id, isDelete: false },
+    });
+    if (!existingHopDong) {
+      throw new NotFoundException(`Hợp đồng với id ${id} không tồn tại`);
+    }
+     //Thêm check chỗ phòng mới gia hạn hoặc sửa thì phải trùng với phòng cũ chứ ko được nhảy qua phòng mới
+  if (dto.phongId !== existingHopDong.phongId) {
+    throw new BadRequestException(
+      'Không thể chuyển hợp đồng sang phòng khác. Nếu muốn thuê phòng mới, vui lòng tạo hợp đồng mới!'
+    );
+  }
+  //Nếu hợp đồng trc đó đang ở trạng thái khởi tạo thì update trực tiếp, ko cần tạo hợp đồng mới
+  if (existingHopDong.trangThai === 0) {
+    const chuoiImageConTract = listUrlImage.length > 0
+      ? listUrlImage.join(',')
+      : existingHopDong.anhHopDong ?? ''; // giữ ảnh cũ nếu không upload ảnh mới
+
+    return await this.prisma.hopDong.update({
+      where: { hopDongId: id },
+      data: {
+        ngayKy: dto.ngayKy ? new Date(dto.ngayKy) : undefined,
+        ngayHetHan: dto.ngayHetHan ? new Date(dto.ngayHetHan) : undefined,
+        tienCoc: dto.tienCoc,
+        giaPhongThucTe: dto.giaPhongThucTe,
+        ghiChu: dto.ghiChu,
+        anhHopDong: chuoiImageConTract,
+      },
+    });
+  } 
+  // Nếu hợp đồng đã hết hiệu lực thì không cho renew nữa
+if (existingHopDong.trangThai === 2) {
+  throw new BadRequestException(
+    'Hợp đồng này đã hết hiệu lực, không thể gia hạn. Vui lòng tạo hợp đồng mới!'
+  );
+}
+
+    // Nếu hợp đồng cũ đang ở trạng thái hiệu lực hoặc hết hiệu lực, thì set hợp đồng cũ thành hết hiệu lực và tạo hợp đồng mới
+    return await this.prisma.$transaction(async (prisma) => {
+     await prisma.hopDong.update({
+        where: { hopDongId: id },
+        data: { trangThai: 2 }, // Cập nhật hợp đồng cũ thành hết hiệu lực
+      });
+     return await this._createHopDong(prisma, dto as CreateHopDongDto, listUrlImage); // Tạo hợp đồng mới với thông tin mới
     });
   }
 //--------------------------------------------------------------------------------
-  async findOne(id: string) {
+ async findOne(id: string) {
     const item = await this.prisma.hopDong.findFirst({
       where: { hopDongId: id, isDelete: false },
       //include: { nguoiThue: true, phong: { include: { loaiPhong: true } }, hoaDonPhong: true },
     });
     if (!item) throw new NotFoundException(`HopDong với id ${id} không tồn tại`);
     return item;
-  }
-
-  async update(id: string, dto: UpdateHopDongDto) {
-    await this.findOne(id);
-    return this.prisma.hopDong.update({ where: { hopDongId: id }, data: dto as any });
   }
 
   async remove(id: string) {
@@ -212,3 +265,5 @@ export class HopDongService {
   }
 
 }
+
+

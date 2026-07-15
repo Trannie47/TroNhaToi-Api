@@ -33,6 +33,21 @@ export class HopDongController {
       }
     return this.hopDongService.create(body, listUrlImage);
   }
+  @Post(':hopDongId/updateContract')
+  @ApiOperation({ summary: 'Gia hạn / Cập nhật lại hợp đồng - kết thúc HĐ cũ và tạo HĐ mới' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FilesInterceptor('files'))
+  async update(@Param('hopDongId') id: string, @Body() dto: UpdateHopDongDto,
+    @UploadedFiles() files: Array<Express.Multer.File>) {
+      const listUrlImage : string[] = [];
+      if(files && files.length > 0){
+        for(const file of files){
+          const result = await this.cloudinaryService.uploadImage(file); // up list ảnh lên cloudinary rồi lấy list url về
+          listUrlImage.push(result.secure_url);
+        } 
+      }
+    return this.hopDongService.update(id, dto, listUrlImage);
+  }
 
   @Get('findAll')
   @ApiOperation({ summary: 'Danh sách Hợp Đồng' })
@@ -65,12 +80,6 @@ export class HopDongController {
   @ApiParam({ name: 'hopDongId', description: 'ID của Hợp Đồng' })
   findOne(@Param('hopDongId') id: string) {
     return this.hopDongService.findOne(id);
-  }
-
-  @Patch(':hopDongId')
-  @ApiOperation({ summary: 'Cập nhật Hợp Đồng' })
-  update(@Param('hopDongId') id: string, @Body() dto: UpdateHopDongDto) {
-    return this.hopDongService.update(id, dto);
   }
 
   @Delete(':hopDongId')

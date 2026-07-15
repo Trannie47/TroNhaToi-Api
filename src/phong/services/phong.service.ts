@@ -22,7 +22,7 @@ export class PhongService {
       const phong = p as any;
       let giahientai = 0;
       if (phong.HopDong && phong.HopDong.length > 0) {
-        giahientai = phong.HopDong.reduce((sum, hd) => sum + (hd.giaPhongThucTe || 0), 0);
+        giahientai = phong.HopDong.reduce((sum, hd) => sum + Number(hd.giaPhongThucTe || 0), 0);
       }
       else {
         giahientai = phong.loaiPhong?.giaTien || 0;
