@@ -83,16 +83,27 @@ model HopDong {
 }
 
 model DienNuoc {
-  idDienNuoc String  @id @db.Char(12)
-  phongId    Int?    @map("PhongID")
-  thangNam   String? @db.VarChar(20)
-  chiSoDien  Int?
-  chiSoNuoc  Int?
-  TrangThai  Int     @default(0)
-  isDelete   Boolean @default(false)
-  phong      Phong?  @relation(fields: [phongId], references: [phongId], onDelete: NoAction, onUpdate: NoAction, map: "diennuoc_ibfk_1")
+  phongId      Int      @map("PhongID")
+  thangNam     String   @db.VarChar(20) 
+  lanGhi       Int      @default(1)  
+  
+  chiSoDienCu  Int      @default(0)
+  chiSoDienMoi Int      @default(0)
+  chiSoNuocCu  Int      @default(0)
+  chiSoNuocMoi Int      @default(0)
+  
+  anhDienCu    String?  @db.VarChar(255)
+  anhDienMoi   String?  @db.VarChar(255)
+  anhNuocCu    String?  @db.VarChar(255)
+  anhNuocMoi   String?  @db.VarChar(255)
+  
+  ngayGhi      DateTime @default(now())
+  TrangThai    Int      @default(0)     // 0: Chưa tạo hóa đơn, 1: Đã tạo hóa đơn
+    
+  phong        Phong    @relation(fields: [phongId], references: [phongId], onDelete: Cascade, onUpdate: NoAction, map: "diennuoc_ibfk_1")
 
-  @@index([phongId], map: "PhongID")
+  //Bộ Khóa chính
+  @@id([phongId, thangNam, lanGhi])
   @@map("diennuoc")
 }
 
