@@ -9,67 +9,80 @@ import { generateId } from '../../common/utils/generate-id.util';
 export class DienNuocService {
   constructor(private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.dienNuoc.findMany({
-      where: { isDelete: false },
-      include: { phong: { select: { phongId: true, tenPhong: true } } },
-    });
+  // Lấy dữ liệu khởi tạo cho Điện Nước khi vào chức năng ghi điẹn nước
+  async getDienNuocInitData(phongId: number, currentThangNam: string) {
+  // kiểm tra phongId có tồn tại
+  const phongExists = await this.prisma.phong.findUnique({
+    where: { phongId: phongId }
+  });
+  if (!phongExists) {
+    throw new NotFoundException(`Không tìm thấy phòng với ID ${phongId}`);
   }
 
-  async findOne(id: string) {
-    const item = await this.prisma.dienNuoc.findFirst({
-      where: { idDienNuoc: id, isDelete: false },
-      include: { phong: { select: { phongId: true, tenPhong: true } } },
-    });
-    if (!item) throw new NotFoundException(`DienNuoc với id ${id} không tồn tại`);
-    return item;
+  // Tìm bản ghi chưa chốt (TrangThai = 0), orderBy lanGhi desc để lấy dòng mới nhất
+  const openRecord = await this.prisma.dienNuoc.findFirst({
+    where: {
+      phongId: phongId,
+      thangNam: currentThangNam,
+      TrangThai: 0
+    },
+    orderBy: {lanGhi: 'desc'}
+  });
+
+  // TH1 đã ghi nhưng chưa lập hóa đơn -> trả về update
+  if (openRecord) {
+    return {
+      mode: "UPDATE",
+      data: openRecord // Gồm cả phongId, thangNam, lanGhi để Flutter gửi ngược lên khi PUT
+    };
   }
 
-  create(dto: CreateDienNuocDto) {
-    return this.prisma.dienNuoc.create({
-      data: { idDienNuoc: generateId('DN', 12), ...dto } as any,
-    });
+  // TH2: chưa có hoặc đã lập hóa đơn cho chỉ số trc đó -> trả về create
+  // Lấy lịch sử gần nhất
+  const latestRecord = await this.prisma.dienNuoc.findFirst({
+    where: { phongId: phongId },
+    orderBy: [
+      { ngayGhi: 'desc' },
+      { lanGhi: 'desc' }
+    ]
+  });
+
+  // Neus Phòng mới tinh chưa từng được ghi chỉ số bao giờ
+  if (!latestRecord) {
+    return {
+      mode: "CREATE",
+      data: {
+        phongId,
+        thangNam: currentThangNam,
+        chiSoDienCu: 0,
+        chiSoDienMoi: 0,
+        chiSoNuocCu: 0,
+        chiSoNuocMoi: 0,
+        anhDienCu: null,
+        anhDienMoi: null,
+        anhNuocCu: null,
+        anhNuocMoi: null,
+        isFirstTime: true
+      }
+    };
   }
 
-  async update(id: string, dto: UpdateDienNuocDto) {
-    await this.findOne(id);
-    return this.prisma.dienNuoc.update({ where: { idDienNuoc: id }, data: dto as any });
-  }
-
-  async remove(id: string) {
-    await this.findOne(id);
-    return this.prisma.dienNuoc.update({ where: { idDienNuoc: id }, data: { isDelete: true } });
-  }
-  async search(req: SearchDienNuocDto) {
-    const { ma, limit = 10, offset = 0, sortBy = 'idDienNuoc', sort = 'desc' } = req;
-    const where: any = { isDelete: false };
-
-    if (ma) {
-      where.idDienNuoc = { contains: ma };
+  //Neeus Phòng đã có lịch sử ghi trước đó
+  return {
+    mode: "CREATE",
+    data: {
+      phongId,
+      thangNam: currentThangNam,
+      chiSoDienCu: latestRecord.chiSoDienMoi,
+      chiSoDienMoi: 0,
+      chiSoNuocCu: latestRecord.chiSoNuocMoi,
+      chiSoNuocMoi: 0,
+      anhDienCu: latestRecord.anhDienMoi,
+      anhDienMoi: null,
+      anhNuocCu: latestRecord.anhNuocMoi,
+      anhNuocMoi: null,
+      isFirstTime: false
     }
-
-    const [data, total] = await Promise.all([
-      this.prisma.dienNuoc.findMany({
-        where,
-        orderBy: { [sortBy]: sort },
-        take: Number(limit),
-        skip: Number(offset),
-      }),
-      this.prisma.dienNuoc.count({ where }),
-    ]);
-
-    return { total, data };
-  }
-
-  getAllLoadingBalance(id?: string) {
-    return this.prisma.dienNuoc.findMany({
-      where: { isDelete: false },
-      orderBy: { idDienNuoc: 'asc' },
-      take: 15,
-      ...(id !== undefined && id !== null
-        ? { skip: 1, cursor: { idDienNuoc: id } }
-        : {}),
-    });
-  }
-
+  };
+}
 }
