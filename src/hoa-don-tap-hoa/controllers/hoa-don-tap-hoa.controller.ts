@@ -12,7 +12,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @Controller('hoa-don-tap-hoa')
 export class HoaDonTapHoaController {
-  constructor(private readonly hoaDonTapHoaService: HoaDonTapHoaService) {}
+  constructor(private readonly hoaDonTapHoaService: HoaDonTapHoaService) { }
 
   @Post()
   @ApiOperation({ summary: 'Tạo Hóa Đơn Tạp Hóa mới' })
