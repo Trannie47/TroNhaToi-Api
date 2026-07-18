@@ -218,14 +218,28 @@ model ThietBi {
   thietBiId  Int       @id @default(autoincrement()) @map("thietBiID")
   tenThietBi String?   @db.VarChar(255)
   loai       String?   @db.VarChar(100)
-  giaTri     Decimal?  @db.Decimal(10, 2)
-  ngayMua    DateTime? @db.Date
   trangThai  Int?      @default(0)
   isDelete   Boolean   @default(false)
   laprap     LapRap[]
   suachua    SuaChua[]
+  lichSuMua  LichSuMuaThietBi[]
 
   @@map("thietbi")
+}
+
+model LichSuMuaThietBi {
+  id        Int       @id @default(autoincrement())
+  thietBiId Int       @map("thietBiID")
+  soLuong   Int       @default(0)
+  donGia    Decimal   @db.Decimal(10, 2)
+  ngayMua   DateTime  @db.Date
+  ghiChu    String?   @db.VarChar(255)
+  isDelete  Boolean   @default(false)
+
+  thietbi   ThietBi   @relation(fields: [thietBiId], references: [thietBiId], onDelete: Restrict, onUpdate: Restrict, map: "LichSuMua_FK1")
+
+  @@index([thietBiId], map: "thietBiID")
+  @@map("lichsumuathietbi")
 }
 
 model LapRap {
