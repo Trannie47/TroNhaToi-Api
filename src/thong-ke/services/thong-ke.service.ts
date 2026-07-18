@@ -234,18 +234,18 @@ export class ThongKeService {
   }
 
   /**
-   * ==========================================
-   * TỔNG CHI PHÍ
-   * ==========================================
-   */
-  private async getTongChiPhi(dto: ThongKeQueryDto) {
-    const { from, to } = this.getDateRange(dto);
+ * ==========================================
+ * TỔNG CHI PHÍ
+ * ==========================================
+ */
+private async getTongChiPhi(dto: ThongKeQueryDto) {
+  const { from, to } = this.getDateRange(dto);
 
-    const hoaDonSuaChua = await this.prisma.hoaDonSuaChua.aggregate({
+  const [hoaDonSuaChua, lichSuMuaThietBi] = await Promise.all([
+    this.prisma.hoaDonSuaChua.aggregate({
       _sum: {
         giaTien: true,
       },
-
       where: {
         isDelete: false,
         ngayLapHoaDonSc: {
@@ -253,12 +253,36 @@ export class ThongKeService {
           lte: to,
         },
       },
-    });
+    }),
+    this.prisma.lichSuMuaThietBi.findMany({
+      where: {
+        isDelete: false,
+        ngayMua: {
+          gte: from,
+          lte: to,
+        },
+      },
+      select: {
+        soLuong: true,
+        donGia: true,
+      },
+    }),
+  ]);
 
-    return {
-      tongChiPhi: this.toNumber(hoaDonSuaChua._sum.giaTien),
-    };
-  }
+  
+  const tongTienMuaThietBi = lichSuMuaThietBi.reduce(
+    (sum, r) => sum + r.soLuong * this.toNumber(r.donGia),
+    0,
+  );
+
+  const tongTienSuaChua = this.toNumber(hoaDonSuaChua._sum.giaTien) + tongTienMuaThietBi;
+
+  return {
+    tongChiPhi: tongTienSuaChua + tongTienMuaThietBi,
+    tongTienSuaChua,
+    tongTienMuaThietBi,
+  };
+}
 
   /**
    * ==========================================
