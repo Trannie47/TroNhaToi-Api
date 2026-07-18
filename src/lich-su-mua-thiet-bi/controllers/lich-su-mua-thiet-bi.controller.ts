@@ -11,7 +11,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @Controller('lich-su-mua-thiet-bi')
 export class LichSuMuaThietBiController {
-  constructor(private readonly service: LichSuMuaThietBiService) {}
+  constructor(private readonly service: LichSuMuaThietBiService) { }
 
   @Post()
   @ApiOperation({ summary: 'Ghi nhận 1 lần mua thiết bị mới' })
@@ -69,5 +69,12 @@ export class LichSuMuaThietBiController {
   @ApiOperation({ summary: 'Xóa (mềm) 1 lần mua thiết bị' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.service.remove(id);
+  }
+
+  @Get('theo-thiet-bi/:thietBiId')
+  @ApiOperation({ summary: 'Danh sách lịch sử mua theo thiết bị' })
+  @ApiParam({ name: 'thietBiId', description: 'ID của thiết bị' })
+  getDSLichSuByThietBi(@Param('thietBiId', ParseIntPipe) thietBiId: number) {
+    return this.service.getDSLichSuByThietBi(thietBiId);
   }
 }
