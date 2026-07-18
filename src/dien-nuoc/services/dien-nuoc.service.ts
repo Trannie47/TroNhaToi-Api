@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateDienNuocDto } from '../dto/create-dien-nuoc.dto';
 import { UpdateDienNuocDto } from '../dto/update-dien-nuoc.dto';
@@ -85,4 +85,59 @@ export class DienNuocService {
     }
   };
 }
+
+async createDienNuoc(dto: CreateDienNuocDto) {
+    const { phongId, thangNam } = dto; // Lấy thông tin phongId và thangNam từ DTO
+
+    if (!phongId || !thangNam) {
+      throw new BadRequestException('Thiếu thông tin phongId hoặc thangNam');
+    }
+
+    // Kiểm tra phòng có tồn tại không
+    const phongExists = await this.prisma.phong.findUnique({
+      where: { phongId: phongId },
+    });
+    if (!phongExists) {
+      throw new NotFoundException(`Không tìm thấy phòng với ID ${phongId}`);
+    }
+
+    // Tìm bản ghi cuối cùng của kỳ (tháng/năm) này để xem trạng thái của nó
+    const banGhiCuoiInMonth = await this.prisma.dienNuoc.findFirst({
+      where: {
+        phongId: phongId,
+        thangNam: thangNam,
+      },
+      orderBy: { lanGhi: 'desc' },
+    });
+
+    if (banGhiCuoiInMonth && banGhiCuoiInMonth.TrangThai === 0) {
+      throw new BadRequestException(
+        `Kỳ ${thangNam} đang có bản ghi chưa chốt, vui lòng cập nhật thay vì tạo mới!`,
+      );
+    }
+
+    const nextLanGhi = banGhiCuoiInMonth ? banGhiCuoiInMonth.lanGhi + 1 : 1;
+
+    // Tạo mới
+    return await this.prisma.dienNuoc.create({
+      data: {
+        phongId: phongId,
+        thangNam: thangNam,
+        chiSoDienCu: dto.chiSoDienCu ?? 0,
+        chiSoDienMoi: dto.chiSoDienMoi ?? 0,
+        chiSoNuocCu: dto.chiSoNuocCu ?? 0,
+        chiSoNuocMoi: dto.chiSoNuocMoi ?? 0,
+        // Lưu cả 4 ảnh cũ/mới phòng trường hợp chủ trọ thay công tơ
+        anhDienCu: dto.anhDienCu || null,
+        anhDienMoi: dto.anhDienMoi || null,
+        anhNuocCu: dto.anhNuocCu || null,
+        anhNuocMoi: dto.anhNuocMoi || null,
+        lanGhi: nextLanGhi,
+        TrangThai: 0, // Mặc định là 0 (Chưa chốt hóa đơn)
+       ngayGhi: dto.ngayGhi ? new Date(dto.ngayGhi) : new Date(),
+      },
+    });
+  }
+
+  
 }
