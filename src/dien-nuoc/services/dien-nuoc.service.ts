@@ -100,6 +100,12 @@ async createDienNuoc(dto: CreateDienNuocDto) {
     if (!phongExists) {
       throw new NotFoundException(`Không tìm thấy phòng với ID ${phongId}`);
     }
+    if ((dto.chiSoDienMoi ?? 0) < (dto.chiSoDienCu ?? 0)) {
+      throw new BadRequestException('Chỉ số điện mới không được nhỏ hơn chỉ số điện cũ!');
+    }
+    if ((dto.chiSoNuocMoi ?? 0) < (dto.chiSoNuocCu ?? 0)) {
+      throw new BadRequestException('Chỉ số nước mới không được nhỏ hơn chỉ số nước cũ!');
+    }
 
     // Tìm bản ghi cuối cùng của kỳ (tháng/năm) này để xem trạng thái của nó
     const banGhiCuoiInMonth = await this.prisma.dienNuoc.findFirst({
@@ -161,6 +167,17 @@ async createDienNuoc(dto: CreateDienNuocDto) {
       `Kỳ ${thangNam} (Lần ghi: ${lanGhi}) đã lập hóa đơn chốt sổ, không thể chỉnh sửa dữ liệu!`,
     );
   }
+  const dienCu = dto.chiSoDienCu !== undefined ? Number(dto.chiSoDienCu) : banGhiHienTai.chiSoDienCu;
+    const dienMoi = dto.chiSoDienMoi !== undefined ? Number(dto.chiSoDienMoi) : banGhiHienTai.chiSoDienMoi;
+    const nuocCu = dto.chiSoNuocCu !== undefined ? Number(dto.chiSoNuocCu) : banGhiHienTai.chiSoNuocCu;
+    const nuocMoi = dto.chiSoNuocMoi !== undefined ? Number(dto.chiSoNuocMoi) : banGhiHienTai.chiSoNuocMoi;
+
+    if (dienMoi < dienCu) {
+      throw new BadRequestException('Chỉ số điện mới không được nhỏ hơn chỉ số điện cũ!');
+    }
+    if (nuocMoi < nuocCu) {
+      throw new BadRequestException('Chỉ số nước mới không được nhỏ hơn chỉ số nước cũ!');
+    }
   await this.prisma.dienNuoc.updateMany({
     where: {
       phongId: phongId,
