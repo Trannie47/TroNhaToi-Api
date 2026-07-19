@@ -139,5 +139,56 @@ async createDienNuoc(dto: CreateDienNuocDto) {
     });
   }
 
+  async updateDienNuoc(phongId: number, thangNam: string, lanGhi: number, dto: UpdateDienNuocDto) {
+  //Tìm bản ghi chỉ số cần cập nhật dựa vào bộ khóa định danh
+  const banGhiHienTai = await this.prisma.dienNuoc.findFirst({
+    where: {
+      phongId: phongId,
+      thangNam: thangNam,
+      lanGhi: lanGhi,
+    },
+  });
+
+  if (!banGhiHienTai) {
+    throw new NotFoundException(
+      `Không tìm thấy chỉ số điện nước của phòng ${phongId} tại kỳ ${thangNam} (Lần ghi: ${lanGhi})`,
+    );
+  }
+
+  //Kiểm tra xem bản ghi này đã lập hóa đơn chưa
+  if (banGhiHienTai.TrangThai === 1) {
+    throw new BadRequestException(
+      `Kỳ ${thangNam} (Lần ghi: ${lanGhi}) đã lập hóa đơn chốt sổ, không thể chỉnh sửa dữ liệu!`,
+    );
+  }
+  await this.prisma.dienNuoc.updateMany({
+    where: {
+      phongId: phongId,
+      thangNam: thangNam,
+      lanGhi: lanGhi,
+    },
+    data: {
+      chiSoDienCu: dto.chiSoDienCu !== undefined ? dto.chiSoDienCu : undefined,
+      chiSoDienMoi: dto.chiSoDienMoi !== undefined ? dto.chiSoDienMoi : undefined,
+      chiSoNuocCu: dto.chiSoNuocCu !== undefined ? dto.chiSoNuocCu : undefined,
+      chiSoNuocMoi: dto.chiSoNuocMoi !== undefined ? dto.chiSoNuocMoi : undefined,
+      anhDienCu: dto.anhDienCu !== undefined ? dto.anhDienCu : undefined,
+      anhDienMoi: dto.anhDienMoi !== undefined ? dto.anhDienMoi : undefined,
+      anhNuocCu: dto.anhNuocCu !== undefined ? dto.anhNuocCu : undefined,
+      anhNuocMoi: dto.anhNuocMoi !== undefined ? dto.anhNuocMoi : undefined,
+      // Đồng bộ ngày ghi thực tế do chủ trọ chỉnh sửa từ ứng dụng gửi về
+      ngayGhi: dto.ngayGhi ? new Date(dto.ngayGhi) : undefined,
+    },
+  });
+
+  return await this.prisma.dienNuoc.findFirst({
+    where: {
+      phongId: phongId,
+      thangNam: thangNam,
+      lanGhi: lanGhi,
+    },
+  });
+}
+
   
 }
