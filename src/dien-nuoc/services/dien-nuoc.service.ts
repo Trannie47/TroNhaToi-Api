@@ -29,7 +29,7 @@ export class DienNuocService {
     orderBy: {lanGhi: 'desc'}
   });
 
-  // TH1 đã ghi nhưng chưa lập hóa đơn -> trả về update
+  //đã ghi nhưng chưa lập hóa đơn -> trả về update
   if (openRecord) {
     return {
       mode: "UPDATE",
@@ -37,18 +37,17 @@ export class DienNuocService {
     };
   }
 
-  // TH2: chưa có hoặc đã lập hóa đơn cho chỉ số trc đó -> trả về create
-  // Lấy lịch sử gần nhất
-  const latestRecord = await this.prisma.dienNuoc.findFirst({
-    where: { phongId: phongId },
-    orderBy: [
-      { ngayGhi: 'desc' },
-      { lanGhi: 'desc' }
-    ]
-  });
+  //Nếu KHÔNG CÓ bản ghi nào chốt (TrangThai=1), lội thẳng về bản ghi ĐẦU TIÊN CŨ NHẤT (Chỉ số đầu bàn giao)
+  const oldestRecord = await this.prisma.dienNuoc.findFirst({
+      where: { phongId: phongId },
+      orderBy: [
+        { ngayGhi: 'asc' }, // Sắp xếp tăng dần để lấy thằng sinh ra đầu tiên lịch sử
+        { lanGhi: 'asc' }
+      ]
+    });
 
   // Neus Phòng mới tinh chưa từng được ghi chỉ số bao giờ
-  if (!latestRecord) {
+  if (!oldestRecord) {
     return {
       mode: "CREATE",
       data: {
@@ -67,7 +66,18 @@ export class DienNuocService {
     };
   }
 
+   //  chưa có hoặc đã lập hóa đơn cho chỉ số trc đó -> trả về create
+  // Lấy lịch sử gần nhất,Tìm bản ghi ĐÃ CHỐT HÓA ĐƠN GẦN NHẤT (TrangThai = 1)
+  const latestRecord = await this.prisma.dienNuoc.findFirst({
+    where: { phongId: phongId, TrangThai: 1 },
+    orderBy: [
+      { ngayGhi: 'desc' },
+      { lanGhi: 'desc' }
+    ]
+  });
+
   //Neeus Phòng đã có lịch sử ghi trước đó
+  if (latestRecord) {
   return {
     mode: "CREATE",
     data: {
@@ -80,6 +90,25 @@ export class DienNuocService {
       anhDienCu: latestRecord.anhDienMoi,
       anhDienMoi: null,
       anhNuocCu: latestRecord.anhNuocMoi,
+      anhNuocMoi: null,
+      isFirstTime: false
+    }
+  };
+}
+//Trường hợp lội ngược hết lịch sử mà không có bản ghi chốt (TrangThai = 1) nào
+// Hệ thống sẽ lấy chỉ số mới của bản ghi đầu tiên cũ nhất (chỉ số bàn giao) làm chỉ số cũ cho kỳ này
+return {
+    mode: "CREATE",
+    data: {
+      phongId,
+      thangNam: currentThangNam,
+      chiSoDienCu: oldestRecord.chiSoDienMoi,
+      chiSoDienMoi: 0,
+      chiSoNuocCu: oldestRecord.chiSoNuocMoi,
+      chiSoNuocMoi: 0,
+      anhDienCu: oldestRecord.anhDienMoi,
+      anhDienMoi: null,
+      anhNuocCu: oldestRecord.anhNuocMoi,
       anhNuocMoi: null,
       isFirstTime: false
     }
