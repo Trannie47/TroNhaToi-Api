@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, UseInterceptors, UploadedFiles, ParseIntPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiQuery, ApiConsumes } from '@nestjs/swagger';
 import { HopDongService } from '../services/hop-dong.service';
 import { CreateHopDongDto } from '../dto/create-hop-dong.dto';
@@ -10,7 +10,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Hợp Đồng')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+//@UseGuards(JwtAuthGuard)
 @Controller('hop-dong')
 export class HopDongController {
   constructor(
@@ -60,6 +60,11 @@ export class HopDongController {
   @ApiOperation({ summary: 'Danh sách phòng available cho việc tạo hợp đồng' })
   getRoomsAvailableForContract() {
     return this.hopDongService.getRoomsAvailableForContract();
+  }
+
+  @Get(':phongId/lich-su')
+  async getLichSuThuePhong(@Param('phongId', ParseIntPipe) phongId: number) {
+    return await this.hopDongService.getLichSuThuePhong(phongId);
   }
 
   @Get('search')

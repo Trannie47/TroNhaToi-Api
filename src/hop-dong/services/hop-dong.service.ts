@@ -218,6 +218,34 @@ if (existingHopDong.trangThai === 2) {
      return await this._createHopDong(prisma, dto as CreateHopDongDto, listUrlImage); // Tạo hợp đồng mới với thông tin mới
     });
   }
+
+
+  // Lấy danh sách lịch sử hợp đồng đã kết thúc của một phòng
+  async getLichSuThuePhong(phongId : number) {
+    const phongExists = await this.prisma.phong.findUnique({
+      where: { phongId: phongId },
+    });
+    if (!phongExists) {
+      throw new NotFoundException(`Không tìm thấy phòng với ID ${phongId}`);
+    }
+    return await this.prisma.hopDong.findMany({
+      where: {
+        phongId: phongId,
+        trangThai: 2, // 2: đã kết thúc
+      },
+      include: {
+        nguoithue: {
+          select:{
+            hoTen: true,
+            sdt: true,
+          }
+        }
+      },
+      orderBy: {
+        ngayHetHan: 'desc', // Hợp đồng nào mới kết thúc gần đây nhất thì hiện lên đầu
+      },
+    });
+  }
 //--------------------------------------------------------------------------------
  async findOne(id: string) {
     const item = await this.prisma.hopDong.findFirst({
