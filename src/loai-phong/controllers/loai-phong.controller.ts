@@ -27,17 +27,16 @@ export class LoaiPhongController {
   async update(@Body() dto: UpdateLoaiPhongDto) {
     return await this.loaiPhongService.update(dto);
   }
+  @Delete('deleteLoaiPhong/:id')
+  @ApiOperation({ summary: 'Xóa Loại Phòng' })
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    return await this.loaiPhongService.remove(id);
+  }
 
   @Get(':maLoaiPhong')
   @ApiOperation({ summary: 'Chi tiết Loại Phòng' })
   @ApiParam({ name: 'maLoaiPhong', description: 'ID của Loại Phòng' })
   findOne(@Param('maLoaiPhong', ParseIntPipe) id: number) {
     return this.loaiPhongService.findOne(id);
-  }
-
-  @Delete(':maLoaiPhong')
-  @ApiOperation({ summary: 'Xóa Loại Phòng' })
-  remove(@Param('maLoaiPhong', ParseIntPipe) id: number) {
-    return this.loaiPhongService.remove(id);
   }
 }

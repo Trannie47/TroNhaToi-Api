@@ -93,7 +93,42 @@ export class LoaiPhongService {
       throw new InternalServerErrorException('Không thể cập nhật loại phòng do lỗi hệ thống');
     }
   }
+async remove(maLoaiPhong: number) {
+    //Kiểm tra xem loại phòng này có tồn tại không
+    const loaiPhong = await this.prisma.loaiPhong.findUnique({
+      where: { maLoaiPhong },
+    });
 
+    if (!loaiPhong) {
+      throw new NotFoundException('Không tìm thấy loại phòng cần ẩn!');
+    }
+
+    //Kiểm tra ràng buộc
+    const phongDangSuDung = await this.prisma.phong.findFirst({
+      where: { maLoaiPhong: maLoaiPhong },
+    });
+
+    if (phongDangSuDung) {
+      throw new BadRequestException(
+        `Không thể ẩn! Loại phòng "${loaiPhong.tenLoaiPhong}" đang được sử dụng bởi các phòng khác trong hệ thống.`,
+      );
+    }
+
+    try {
+      await this.prisma.loaiPhong.update({
+        where: { maLoaiPhong },
+        data: { isDelete: true },
+      });
+
+      return {
+        success: true,
+        message: 'Ẩn loại phòng thành công!',
+      };
+    } catch (error) {
+      console.error('Lỗi hệ thống khi ẩn loại phòng:', error);
+      throw new InternalServerErrorException('Không thể ẩn loại phòng do lỗi hệ thống');
+    }
+  }
 
   //-------------------------------
 
@@ -106,8 +141,4 @@ export class LoaiPhongService {
     return item;
   }
 
-  async remove(id: number) {
-    await this.findOne(id);
-    return this.prisma.loaiPhong.delete({ where: { maLoaiPhong: id } });
-  }
 }
