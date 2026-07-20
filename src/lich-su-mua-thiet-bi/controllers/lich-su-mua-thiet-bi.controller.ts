@@ -71,7 +71,7 @@ export class LichSuMuaThietBiController {
     return this.service.remove(id);
   }
 
-  @Get('theo-thiet-bi/:thietBiId')
+  @Get('thiet-bi/:thietBiId')
   @ApiOperation({ summary: 'Danh sách lịch sử mua theo thiết bị' })
   @ApiParam({ name: 'thietBiId', description: 'ID của thiết bị' })
   getDSLichSuByThietBi(@Param('thietBiId', ParseIntPipe) thietBiId: number) {

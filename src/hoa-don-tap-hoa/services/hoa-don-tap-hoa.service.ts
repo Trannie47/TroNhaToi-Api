@@ -144,17 +144,37 @@ export class HoaDonTapHoaService {
     const { chiTietTapHoa, phieuThuHdTh, ...hoaDonData } = dto;
 
     return this.prisma.$transaction(async (tx) => {
-
-      // Thêm các phiếu thu mới (không xóa phiếu cũ)
+      // Chỉ thêm các phiếu thu chưa tồn tại
       if (phieuThuHdTh?.length) {
-        await tx.phieuThuHdTh.createMany({
-          data: phieuThuHdTh.map((pt) => ({
+        const dataCanThem = [];
+
+        for (const pt of phieuThuHdTh) {
+          // Nếu FE gửi mã phiếu thu thì kiểm tra đã tồn tại chưa
+          if (pt.maPhieuThu) {
+            const existed = await tx.phieuThuHdTh.findUnique({
+              where: {
+                maPhieuThu: pt.maPhieuThu,
+              },
+            });
+
+            if (existed) {
+              continue;
+            }
+          }
+
+          dataCanThem.push({
             maHoaDon: id,
             ngayThu: pt.ngayThu,
             soTien: pt.soTien,
             nguoiDong: pt.nguoiDong,
-          })),
-        });
+          });
+        }
+
+        if (dataCanThem.length > 0) {
+          await tx.phieuThuHdTh.createMany({
+            data: dataCanThem,
+          });
+        }
       }
 
       const result = await tx.hoaDonTapHoa.update({
