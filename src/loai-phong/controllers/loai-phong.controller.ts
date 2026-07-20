@@ -12,10 +12,9 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 export class LoaiPhongController {
   constructor(private readonly loaiPhongService: LoaiPhongService) {}
 
-  @Post()
-  @ApiOperation({ summary: 'Tạo Loại Phòng mới' })
-  create(@Body() dto: CreateLoaiPhongDto) {
-    return this.loaiPhongService.create(dto);
+  @Post('createLoaiPhong')
+  async create(@Body() dto: CreateLoaiPhongDto) {
+    return await this.loaiPhongService.create(dto);
   }
 
   @Get('getAllLoaiPhong')

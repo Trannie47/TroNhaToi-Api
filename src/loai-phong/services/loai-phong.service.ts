@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateLoaiPhongDto } from '../dto/create-loai-phong.dto';
 import { UpdateLoaiPhongDto } from '../dto/update-loai-phong.dto';
@@ -12,6 +12,44 @@ export class LoaiPhongService {
      where: { isDelete: false },//isdelete là lấy những loại phòng chưa xóa
     });
   }
+  async create(dto: CreateLoaiPhongDto) {
+    //Kiểm tra xem tên loại phòng này đã tồn tại chưa (tránh trùng tên)
+    const loaiPhongTrung = await this.prisma.loaiPhong.findFirst({
+      where: {
+        tenLoaiPhong: dto.tenLoaiPhong.trim(),
+         isDelete: false, 
+      },
+    });
+
+    if (loaiPhongTrung) {
+      throw new BadRequestException(`Loại phòng với tên "${dto.tenLoaiPhong}" đã tồn tại trên hệ thống!`);
+    }
+
+    try {
+      const newLoaiPhong = await this.prisma.loaiPhong.create({
+        data: {
+          tenLoaiPhong: dto.tenLoaiPhong.trim(),
+          dienTich: dto.dienTich,
+          soNguoiToiDa: dto.soNguoiToiDa,
+          isMayLanh: dto.isMayLanh,
+          giaTien: dto.giaTien,
+          // maLoaiPhong tự tăng nên không cần truyền vào 
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Thêm mới loại phòng thành công!',
+        data: newLoaiPhong,
+      };
+    } catch (error) {
+      console.error('Lỗi hệ thống khi thêm loại phòng:', error);
+      throw new InternalServerErrorException('Không thể thêm loại phòng do lỗi hệ thống');
+    }
+  }
+
+
+  //-------------------------------
 
   async findOne(id: number) {
     const item = await this.prisma.loaiPhong.findUnique({
@@ -22,9 +60,7 @@ export class LoaiPhongService {
     return item;
   }
 
-  create(dto: CreateLoaiPhongDto) {
-    return this.prisma.loaiPhong.create({ data: dto as any });
-  }
+  
 
   async update(id: number, dto: UpdateLoaiPhongDto) {
     await this.findOne(id);
