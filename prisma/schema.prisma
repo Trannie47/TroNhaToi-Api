@@ -17,7 +17,7 @@ model LoaiPhong {
   dienTich     Float?   @db.Float
   isMayLanh    Boolean?
   soNguoiToiDa Int?
-  giaTien      Decimal? @db.Decimal(10, 2)
+  giaTien      Decimal? @db.Decimal(15, 2)
   isDelete     Boolean  @default(false)
   phong        Phong[]
 
