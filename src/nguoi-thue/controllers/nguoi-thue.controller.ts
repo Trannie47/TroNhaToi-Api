@@ -10,7 +10,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @Controller('nguoi-thue')
 export class NguoiThueController {
-  constructor(private readonly nguoiThueService: NguoiThueService) {}
+  constructor(private readonly nguoiThueService: NguoiThueService) { }
 
   @Post('create')
   @ApiOperation({ summary: 'Tạo Người Thuê mới' })
@@ -29,7 +29,7 @@ export class NguoiThueController {
   async getNguoiThueAvailableForContract() {
     return this.nguoiThueService.getNguoiThueAvailableForContract();
   }
-   
+
   @Get(':idnt/listRoomNguoiThue')
   @ApiOperation({ summary: 'Chi tiết Người Thuê' })
   @ApiParam({ name: 'idnt', description: 'ID của Người Thuê' })
@@ -48,4 +48,13 @@ export class NguoiThueController {
   remove(@Param('idnt', ParseIntPipe) id: number) {
     return this.nguoiThueService.remove(id);
   }
+
+  @Get('cong-no-tap-hoa')
+  @ApiOperation({
+    summary: 'Lấy danh sách người thuê còn công nợ tạp hóa',
+  })
+  getNguoiThueCongNoTapHoa() {
+    return this.nguoiThueService.getNguoiThueCongNoTapHoa();
+  }
+  
 }
