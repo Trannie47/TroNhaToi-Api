@@ -67,8 +67,27 @@ export class NguoiThueService {
   }
 
   async update(id: number, dto: UpdateNguoiThueDto) {
-    await this.findOne(id);
-    return this.prisma.nguoiThue.update({ where: { idnt: id }, data: dto as any });
+    // Tìm xem người thuê có tồn tại không
+    const tenant = await this.findOne(id);
+
+    //Nếu trạng thái là 2 (Đã dọn đi) thì báo lỗi ngay
+    if (tenant.trangThai === 2) {
+      throw new BadRequestException(
+        'Không thể cập nhật! Người thuê này đã dọn đi và không còn hoạt động trong hệ thống.',
+      );
+    }
+
+    //Chuẩn hóa lại ngày sinh nếu người dùng có chỉnh sửa ngày sinh dạng chuỗi
+    const updateData = {
+      ...dto,
+      ngaySinh: dto.ngaySinh ? new Date(dto.ngaySinh) : tenant.ngaySinh,
+    };
+
+    //Tiến hành cập nhật thông tin dữ liệu xuống Database
+    return this.prisma.nguoiThue.update({
+      where: { idnt: id },
+      data: updateData as any,
+    });
   }
 
   async remove(id: number) {

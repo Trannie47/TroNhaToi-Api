@@ -37,11 +37,11 @@ export class NguoiThueController {
     return this.nguoiThueService.findRoom_NguoiThue(id);
   }
 
-  // @Patch(':idnt')
-  // @ApiOperation({ summary: 'Cập nhật Người Thuê' })
-  // update(@Param('idnt', ParseIntPipe) id: number, @Body() dto: UpdateNguoiThueDto) {
-  //   return this.nguoiThueService.update(id, dto);
-  // }
+  @Patch(':idnt')
+  @ApiOperation({ summary: 'Cập nhật Người Thuê' })
+  update(@Param('idnt', ParseIntPipe) id: number, @Body() dto: UpdateNguoiThueDto) {
+    return this.nguoiThueService.update(id, dto);
+  }
 
   @Delete(':idnt')
   @ApiOperation({ summary: 'Xóa Người Thuê' })

@@ -7,7 +7,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @ApiTags('Loại Phòng')
 @ApiBearerAuth()
-//@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('loai-phong')
 export class LoaiPhongController {
   constructor(private readonly loaiPhongService: LoaiPhongService) {}
