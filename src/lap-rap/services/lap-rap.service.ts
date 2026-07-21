@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateLapRapDto } from '../dto/create-lap-rap.dto';
 import { UpdateLapRapDto } from '../dto/update-lap-rap.dto';
@@ -15,14 +15,43 @@ export class LapRapService {
     if (!phong) {
       throw new NotFoundException(`Phòng với ID ${dto.phongId} không tồn tại`);
     }
-
+    //Lấy thông tin Thiết bị + Lịch sử mua + Lắp ráp hiện tại
     const thietBi = await this.prisma.thietBi.findFirst({
       where: { thietBiId: dto.thietBiId, isDelete: false },
+      include: {
+        lichSuMua: {
+          where: { isDelete: false },
+          select: { soLuong: true },
+        },
+        laprap: {
+          where: { isDelete: false },
+          select: { soLuong: true },
+        },
+      },
     });
     if (!thietBi) {
       throw new NotFoundException(`Thiết bị với ID ${dto.thietBiId} không tồn tại`);
     }
+    const soLuongMua = thietBi.lichSuMua.reduce(
+      (tong, item) => tong + (item.soLuong ?? 0),
+      0,
+    );
 
+    const soLuongDaLap = thietBi.laprap.reduce(
+      (tong, item) => tong + (item.soLuong ?? 0),
+      0,
+    );
+
+    const soLuongConLai = soLuongMua - soLuongDaLap;
+    const soLuongCanLap = dto.soLuong ?? 1;
+
+    //Check nếu vượt quá tồn kho
+    if (soLuongCanLap > soLuongConLai) {
+      const conLaiText = soLuongConLai > 0 ? soLuongConLai : 0;
+      throw new BadRequestException(
+        `Số lượng thiết bị trong kho không đủ! (Kho còn: ${conLaiText}, Yêu cầu: ${soLuongCanLap})`,
+      );
+    }
     const lapRapMoi = await this.prisma.lapRap.create({
       data: {
         phongId: dto.phongId,
@@ -36,7 +65,7 @@ export class LapRapService {
     });
 
     const { thietbi, isDelete, ...lapRapRest } = lapRapMoi;
-  let thietBiTransform = null;
+    let thietBiTransform = null;
     if (thietbi) {
       const { thietBiId, isDelete: _, ...tbRest } = thietbi;
       thietBiTransform = {
