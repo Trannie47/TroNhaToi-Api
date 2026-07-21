@@ -8,6 +8,49 @@ import { SearchLapRapDto } from '../dto/search-lap-rap.dto';
 export class LapRapService {
   constructor(private prisma: PrismaService) {}
 
+  async taoLapRap(dto: CreateLapRapDto) {
+    const phong = await this.prisma.phong.findFirst({
+      where: { phongId: dto.phongId, isDelete: false },
+    });
+    if (!phong) {
+      throw new NotFoundException(`Phòng với ID ${dto.phongId} không tồn tại`);
+    }
+
+    const thietBi = await this.prisma.thietBi.findFirst({
+      where: { thietBiId: dto.thietBiId, isDelete: false },
+    });
+    if (!thietBi) {
+      throw new NotFoundException(`Thiết bị với ID ${dto.thietBiId} không tồn tại`);
+    }
+
+    const lapRapMoi = await this.prisma.lapRap.create({
+      data: {
+        phongId: dto.phongId,
+        thietBiId: dto.thietBiId,
+        soLuong: dto.soLuong ?? 1,
+        ngayLap: dto.ngayLap ? new Date(dto.ngayLap) : new Date(),
+      },
+      include: {
+        thietbi: true,
+      },
+    });
+
+    const { thietbi, isDelete, ...lapRapRest } = lapRapMoi;
+  let thietBiTransform = null;
+    if (thietbi) {
+      const { thietBiId, isDelete: _, ...tbRest } = thietbi;
+      thietBiTransform = {
+        ...tbRest,
+        thietBiID: thietBiId,
+      };
+    }
+
+    return {
+      ...lapRapRest,
+      thietBi: thietBiTransform,
+    };
+  }
+
   findAll() {
     return this.prisma.lapRap.findMany({
       where: { isDelete: false },

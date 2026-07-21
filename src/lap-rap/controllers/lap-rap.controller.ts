@@ -16,7 +16,7 @@ export class LapRapController {
   @Post()
   @ApiOperation({ summary: 'Tạo Lắp Ráp Thiết Bị mới' })
   create(@Body() dto: CreateLapRapDto) {
-    return this.lapRapService.create(dto);
+   return this.lapRapService.taoLapRap(dto);
   }
 
   @Get()

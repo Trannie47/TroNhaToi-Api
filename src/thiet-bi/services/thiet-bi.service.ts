@@ -125,4 +125,41 @@ export class ThietBiService {
     return rows.map((r) => this.transform(r));
   }
 
+
+  //LẤY DANH SÁCH LẮP RÁP THIẾT BỊ THEO PHÒNG
+  async getThietBiByPhongId(phongId: number) {
+   
+    const phong = await this.prisma.phong.findFirst({
+      where: { phongId, isDelete: false },
+    });
+
+    if (!phong) {
+      throw new NotFoundException(`Phòng với ID ${phongId} không tồn tại`);
+    }
+
+    const dsLapRap = await this.prisma.lapRap.findMany({
+      where: {
+        phongId,
+        isDelete: false,
+        thietbi: {
+          isDelete: false, // Chỉ lấy thiết bị chưa bị xóa
+        },
+      },
+      include: {
+        thietbi: true,
+      },
+      orderBy: {
+        id: 'desc',
+      },
+    });
+
+    return dsLapRap.map((item) => {
+      const { thietbi, isDelete, ...lapRapRest } = item;
+      return {
+        ...lapRapRest,
+        thietBi: thietbi ? this.transform(thietbi) : null,
+      };
+    });
+  }
+
 }
