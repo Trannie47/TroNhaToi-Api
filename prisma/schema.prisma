@@ -37,6 +37,7 @@ model Phong {
   LapRap             LapRap[]
   SuaChua            SuaChua[]
   NguoiLuuTruTamThoi NguoiLuuTruTamThoi[]
+  PhuongTien         PhuongTien[]
 
   @@index([maLoaiPhong], map: "maLoaiPhong")
   @@map("phong")
@@ -139,11 +140,13 @@ model PhuongTien {
   hangXe      String?       @db.VarChar(100)
   mauSac      String?       @db.VarChar(100)
   idnt        Int?          @map("IDNT")
+  phongId     Int?          @map("PhongID")
   loaixe      Int           @default(0)
   SoTien      Float
   isDelete    Boolean       @default(false)
   hoadonguixe HoaDonGuiXe[]
   nguoithue   NguoiThue?    @relation(fields: [idnt], references: [idnt], onDelete: Restrict, onUpdate: Restrict, map: "PhuongTien_FK")
+  phong       Phong?        @relation(fields: [phongId], references: [phongId], onDelete: SetNull, onUpdate: Restrict, map: "PhuongTien_Phong_FK")
 
   @@index([idnt], map: "IDNT")
   @@map("phuongtien")
