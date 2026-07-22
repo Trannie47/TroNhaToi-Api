@@ -80,6 +80,64 @@ export class LapRapService {
     };
   }
 
+async capNhatLapRap(id: number, soLuongMoi: number) {
+  const lapRap = await this.prisma.lapRap.findFirst({
+    where: { id, isDelete: false },
+    include: {
+      thietbi: {
+        include: {
+          lichSuMua: { where: { isDelete: false }, select: { soLuong: true } },
+          laprap: { where: { isDelete: false }, select: { soLuong: true } },
+        },
+      },
+    },
+  });
+
+  if (!lapRap) {
+    throw new NotFoundException(`Bản ghi lắp ráp với ID ${id} không tồn tại`);
+  }
+
+  // TH1: Số lượng mới <= 0 -> Đánh dấu xóa
+  if (soLuongMoi <= 0) {
+    return await this.prisma.lapRap.update({
+      where: { id },
+      data: { isDelete: true },
+    });
+  }
+
+  const soLuongHienTai = lapRap.soLuong ?? 1;
+  const chanhLec = soLuongMoi - soLuongHienTai; // > 0 nếu tăng, < 0 nếu giảm
+
+  // TH2: Nếu TĂNG số lượng -> Kiểm tra tồn kho có đủ cho phần tăng thêm không
+  if (chanhLec > 0) {
+    const thietBi = lapRap.thietbi;
+    const soLuongMua = thietBi.lichSuMua.reduce((t, i) => t + (i.soLuong ?? 0), 0);
+    const soLuongDaLap = thietBi.laprap.reduce((t, i) => t + (i.soLuong ?? 0), 0);
+    const soLuongConLai = soLuongMua - soLuongDaLap;
+
+    if (chanhLec > soLuongConLai) {
+      throw new BadRequestException(
+        `Số lượng trong kho không đủ! (Kho còn: ${soLuongConLai}, Cần thêm: ${chanhLec})`,
+      );
+    }
+  }
+
+  // TH3: Cập nhật trực tiếp số lượng mới vào đúng ID bản ghi cũ
+  const updated = await this.prisma.lapRap.update({
+    where: { id },
+    data: { soLuong: soLuongMoi },
+    include: { thietbi: true },
+  });
+
+  const { thietbi, isDelete, ...lapRapRest } = updated;
+  let thietBiTransform = null;
+  if (thietbi) {
+    const { thietBiId, isDelete: _, ...tbRest } = thietbi;
+    thietBiTransform = { ...tbRest, thietBiID: thietBiId };
+  }
+
+  return { ...lapRapRest, thietBi: thietBiTransform };
+}
   findAll() {
     return this.prisma.lapRap.findMany({
       where: { isDelete: false },
