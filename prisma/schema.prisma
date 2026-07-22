@@ -292,12 +292,15 @@ model HoaDonSuaChua {
 model NguoiLuuTruTamThoi {
   idtt      Int       @id @default(autoincrement()) @map("IDTT")
   hoTen     String?   @db.VarChar(255)
+  moiQuanHe String?   @map("MoiQuanHe") @db.VarChar(100)
   cccd      String?   @map("CCCD") @db.VarChar(50)
-  ngaySinh  DateTime? @db.Date
   sdt       String?   @map("SDT") @db.VarChar(20)
-  queQuan   String?   @db.VarChar(255)
+  
   phongId   Int?      @map("PhongID")
   IDNT      Int
+  ngayDen   DateTime?  @map("NgayDen") @db.Date
+  ngayVe    DateTime?  @map("NgayVe") @db.Date
+
   isDelete  Boolean   @default(false)
   phong     Phong?    @relation(fields: [phongId], references: [phongId], onDelete: Restrict, onUpdate: Restrict, map: "NguoiLuuTruTamThoi_FK2")
   nguoithue NguoiThue @relation(fields: [IDNT], references: [idnt], onUpdate: Restrict, map: "NguoiLuuTruTamThoi_Fk1")
