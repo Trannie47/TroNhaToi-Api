@@ -76,16 +76,30 @@ export class PhieuThuHdThService {
       where: {
         maHoaDon: maHoaDon,
       },
-      
+
     });
   }
 
   async createPhieuThuTheoNguoi(dto: CreatePhieuThuTheoNguoiDto) {
     const { idnt, soTien, ngayThu } = dto;
 
+
+    // kiểm tra người có tồn tại không 
+    const nguoiThue = await this.prisma.nguoiThue.findFirst({
+      where: {
+        idnt,
+        isDelete: false,
+      },
+    });
+
+    if (!nguoiThue) {
+      throw new NotFoundException('Người thuê không tồn tại.');
+    }
+
     if (!soTien || soTien <= 0) {
       throw new BadRequestException('Số tiền không hợp lệ');
     }
+
 
     const ngayThuDate = ngayThu ? new Date(ngayThu) : new Date();
 
@@ -106,6 +120,7 @@ export class PhieuThuHdThService {
           maHoaDon: 'asc',
         },
       });
+
 
       const hoaDonConNo = hoaDonList
         .map((hd) => {
@@ -140,7 +155,7 @@ export class PhieuThuHdThService {
           maHoaDon: hd.maHoaDon,
           ngayThu: ngayThuDate,
           soTien: soTienCanThu,
-          nguoiDong:  '',
+          
         });
 
         soTienConLai -= soTienCanThu;
