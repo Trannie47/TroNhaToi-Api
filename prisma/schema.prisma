@@ -347,4 +347,12 @@ model ThongKeSnapshot {
   @@index([nam, thang])
   @@map("thongkesnapshot")
 }
+model CauHinhGia {
+  id        Int      @id @default(autoincrement()) @map("id")
+  giaDien   Float    @default(3500) @map("gia_dien")
+  giaNuoc   Float    @default(15000) @map("gia_nuoc")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("cauhinhgia")
+}
 

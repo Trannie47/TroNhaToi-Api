@@ -25,6 +25,7 @@ import { NguoiLuuTruTamThoiModule } from './nguoi-luu-tru-tam-thoi/nguoi-luu-tru
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { ThongKeModule } from './thong-ke/thong-ke.module';
 import { LichSuMuaThietBiModule } from './lich-su-mua-thiet-bi/lich-su-mua-thiet-bi.module';
+import { CauHinhGiaModule } from './cau-hinh-gia/cau-hinh-gia.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { LichSuMuaThietBiModule } from './lich-su-mua-thiet-bi/lich-su-mua-thiet
     CloudinaryModule,
     ThongKeModule,
     LichSuMuaThietBiModule,
+    CauHinhGiaModule,
   ],
 })
 export class AppModule {}
