@@ -190,18 +190,49 @@ export class HopDongService {
       ? listUrlImage.join(',')
       : existingHopDong.anhHopDong ?? ''; // giữ ảnh cũ nếu không upload ảnh mới
 
-    return await this.prisma.hopDong.update({
-      where: { hopDongId: id },
-      data: {
-        ngayKy: dto.ngayKy ? new Date(dto.ngayKy) : undefined,
-        ngayHetHan: dto.ngayHetHan ? new Date(dto.ngayHetHan) : undefined,
-        tienCoc: dto.tienCoc,
-        giaPhongThucTe: dto.giaPhongThucTe,
-        ghiChu: dto.ghiChu,
-        anhHopDong: chuoiImageConTract,
-      },
+    //Tính toán lại trạng thái dựa vào ngayKy mới
+    const homNay = new Date();
+    homNay.setHours(0, 0, 0, 0);
+
+    const ngayKyCheck = dto.ngayKy ? new Date(dto.ngayKy) : existingHopDong.ngayKy;
+    const ngayKyReset = new Date(ngayKyCheck);
+    ngayKyReset.setHours(0, 0, 0, 0);
+
+    let newTrangThai = 0; // Mặc định là chờ hiệu lực
+    if (ngayKyReset <= homNay) {
+      newTrangThai = 1; // Chuyển sang Đang hiệu lực nếu ngày ký <= hôm nay
+    }
+
+    return await this.prisma.$transaction(async (prisma) => {
+      const updatedHD = await prisma.hopDong.update({
+        where: { hopDongId: id },
+        data: {
+          ngayKy: dto.ngayKy ? new Date(dto.ngayKy) : undefined,
+          ngayHetHan: dto.ngayHetHan ? new Date(dto.ngayHetHan) : undefined,
+          tienCoc: dto.tienCoc,
+          giaPhongThucTe: dto.giaPhongThucTe,
+          ghiChu: dto.ghiChu,
+          anhHopDong: chuoiImageConTract,
+          trangThai: newTrangThai,
+        },
+      });
+
+      // 🟢 BẮT BUỘC CÓ: Kích hoạt Phòng & Người thuê lên 1 nếu HĐ vừa được chuyển sang Đang hiệu lực
+      if (newTrangThai === 1) {
+        await prisma.phong.update({
+          where: { phongId: existingHopDong.phongId },
+          data: { trangThai: 1 },
+        });
+
+        await prisma.nguoiThue.update({
+          where: { idnt: existingHopDong.idnt },
+          data: { trangThai: 1 },
+        });
+      }
+
+      return updatedHD;
     });
-  } 
+  }
   // Nếu hợp đồng đã hết hiệu lực thì không cho renew nữa
 if (existingHopDong.trangThai === 2) {
   throw new BadRequestException(
