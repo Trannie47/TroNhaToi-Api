@@ -7,10 +7,11 @@ import { SearchHopDongDto } from '../dto/search-hop-dong.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { FilesInterceptor } from '@nestjs/platform-express';
+import { GiaHanHopDongDto } from '../dto/renew-hop-dong.dto';
 
 @ApiTags('Hợp Đồng')
 @ApiBearerAuth()
-//@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('hop-dong')
 export class HopDongController {
   constructor(
@@ -65,6 +66,25 @@ export class HopDongController {
   @Get(':phongId/lich-su')
   async getLichSuThuePhong(@Param('phongId', ParseIntPipe) phongId: number) {
     return await this.hopDongService.getLichSuThuePhong(phongId);
+  }
+
+  @Post(':hopDongId/giaHan')
+  @ApiOperation({ summary: 'Gia hạn hợp đồng (Nối thời hạn, giữ giá, cộng dồn ảnh, ghi đè ghi chú)' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FilesInterceptor('files'))
+  async giaHan(
+    @Param('hopDongId') id: string,
+    @Body() dto: GiaHanHopDongDto,
+    @UploadedFiles() files: Array<Express.Multer.File>,
+  ) {
+    const listUrlImage: string[] = [];
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const result = await this.cloudinaryService.uploadImage(file);
+        listUrlImage.push(result.secure_url);
+      }
+    }
+    return this.hopDongService.giaHan(id, dto, listUrlImage);
   }
 
   @Get('search')
