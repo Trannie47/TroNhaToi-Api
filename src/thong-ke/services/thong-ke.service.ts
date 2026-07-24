@@ -248,6 +248,10 @@ export class ThongKeService {
         },
         where: {
           isDelete: false,
+          trangThai: 2, // chỉ tính hoá đơn đã thanh toán
+          suachua: {
+            isDelete: false, // tránh tính hoá đơn của bản ghi sửa chữa đã bị xoá
+          },
           ngayLapHoaDonSc: {
             gte: from,
             lte: to,
@@ -269,21 +273,19 @@ export class ThongKeService {
       }),
     ]);
 
-
     const tongTienMuaThietBi = lichSuMuaThietBi.reduce(
       (sum, r) => sum + r.soLuong * this.toNumber(r.donGia),
       0,
     );
 
-    const tongTienSuaChua = this.toNumber(hoaDonSuaChua._sum.giaTien) + tongTienMuaThietBi;
-
+    const tongTienSuaChua = this.toNumber(hoaDonSuaChua._sum.giaTien);
+    console.log(tongTienSuaChua);
     return {
       tongChiPhi: tongTienSuaChua + tongTienMuaThietBi,
-      tongTienSuaChua,
-      tongTienMuaThietBi,
+      tongTienSuaChua: tongTienSuaChua,
+      tongTienMuaThietBi: tongTienMuaThietBi,
     };
   }
-
   /**
    * ==========================================
    * THỐNG KÊ
