@@ -102,10 +102,30 @@ model DienNuoc {
   TrangThai    Int      @default(0)     // 0: Chưa tạo hóa đơn, 1: Đã tạo hóa đơn
     
   phong        Phong    @relation(fields: [phongId], references: [phongId], onDelete: Cascade, onUpdate: NoAction, map: "diennuoc_ibfk_1")
-
+  phieuThuDienNuoc PhieuThuDienNuoc?
+   
   //Bộ Khóa chính
   @@id([phongId, thangNam, lanGhi])
   @@map("diennuoc")
+}
+
+model PhieuThuDienNuoc {
+  phieuThuDienNuocId Int @id @default(autoincrement()) @map("PhieuThuDienNuocID")
+
+  phongId  Int    @map("PhongID")
+  thangNam String @db.VarChar(20)
+  lanGhi   Int
+
+  ngayThu DateTime @default(now())
+  soTien  Decimal  @db.Decimal(12,2)
+
+  ghiChu   String? @db.VarChar(255)
+  isDelete Boolean @default(false)
+
+  dienNuoc DienNuoc @relation(fields: [phongId, thangNam, lanGhi], references: [phongId, thangNam, lanGhi], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([phongId, thangNam, lanGhi])
+  @@map("phieuthudiennuoc")
 }
 
 model HoaDonPhong {

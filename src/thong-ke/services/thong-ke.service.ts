@@ -5,7 +5,7 @@ import { ThongKeQueryDto } from "../dto/thong-ke-query.dto";
 
 @Injectable()
 export class ThongKeService {
-  private readonly snapshotTtlMs = 5 * 60 * 1000;
+  private readonly snapshotTtlMs = 1 * 10 * 1000;
 
   constructor(private readonly prisma: PrismaService) { }
 
