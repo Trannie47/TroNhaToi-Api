@@ -4,7 +4,7 @@ Backend REST API cho hệ thống quản lý nhà trọ, xây dựng với **Nes
 
 ---
 
-##  Tech Stack
+## Tech Stack
 
 | Công nghệ | Version | Mục đích |
 |-----------|---------|---------|
@@ -19,12 +19,12 @@ Backend REST API cho hệ thống quản lý nhà trọ, xây dựng với **Nes
 
 ---
 
-##  Cấu trúc dự án
+## Cấu trúc dự án
 
 ```
 quanlynhatro-api/
 ├── prisma/
-│   ├── schema.prisma                  # 19 Prisma models + relations
+│   ├── schema.prisma                  # 24 Prisma models + relations
 │   └── seed.ts                        # Tạo tài khoản admin mặc định
 │
 ├── src/
@@ -75,6 +75,7 @@ quanlynhatro-api/
 │   ├── nguoi-thue/
 │   ├── hop-dong/
 │   ├── dien-nuoc/
+│   ├── phieu-thu-dien-nuoc/            # ⚠️ MỚI — 1-1 với DienNuoc
 │   ├── hoa-don-phong/
 │   ├── phieu-thu-hang-thang/
 │   ├── phuong-tien/                   # ⚠️ PK = bienSo (string)
@@ -84,10 +85,15 @@ quanlynhatro-api/
 │   ├── chi-tiet-tap-hoa/
 │   ├── phieu-thu-hdth/
 │   ├── thiet-bi/
+│   ├── lich-su-mua-thiet-bi/           # ⚠️ MỚI — lịch sử mua thiết bị
 │   ├── lap-rap/
 │   ├── sua-chua/
 │   ├── hoa-don-sua-chua/
-│   └── nguoi-luu-tru-tam-thoi/
+│   ├── nguoi-luu-tru-tam-thoi/
+│   ├── thong-bao/                     
+ hệ thống
+│   ├── thong-ke-snapshot/             # ⚠️ MỚI — snapshot thống kê theo kỳ
+│   └── cau-hinh-gia/                  # ⚠️ MỚI — cấu hình giá điện/nước
 │
 ├── test/
 │   ├── e2e/
@@ -116,7 +122,7 @@ quanlynhatro-api/
 
 ---
 
-##  Cài đặt & Khởi chạy
+## Cài đặt & Khởi chạy
 
 ### 1. Cài dependencies
 
@@ -167,7 +173,7 @@ Tạo tài khoản mặc định:
 | Email | `admin@nhatro.com` |
 | Password | `adminadmin` |
 
->  Đổi mật khẩu sau khi đăng nhập lần đầu.
+> Đổi mật khẩu sau khi đăng nhập lần đầu.
 
 ### 5. Chạy ứng dụng
 
@@ -190,7 +196,7 @@ yarn start:prod
 
 ---
 
-##  Authentication Flow
+## Authentication Flow
 
 ```
 1. yarn prisma:seed         →  Tạo tài khoản admin
@@ -215,19 +221,30 @@ LoaiPhong ──< Phong ──────────────────�
                 │       │                         └──< PhieuThuHdTh        │
                 │       └──< HoaDonPhong                                   │
                 │               └──< PhieuThuHangThang                     │
-                ├──< DienNuoc                                               │
-                ├──< LapRap >── ThietBi                                    │
+                ├──< DienNuoc ──1:1── PhieuThuDienNuoc                     │
+                ├──< LapRap >── ThietBi ──< LichSuMuaThietBi               │
                 ├──< SuaChua ──< HoaDonSuaChua                             │
                 └──< NguoiLuuTruTamThoi ────────────────────────────────────┘
+
+Bảng độc lập (không liên kết trực tiếp tới Phong/HopDong):
+ThongBao          — thông báo hệ thống (có thể tham chiếu hopDongId dạng string, không FK cứng)
+ThongKeSnapshot   — snapshot dữ liệu thống kê theo kỳ (JSON, có hạn dùng)
+CauHinhGia        — cấu hình giá điện/nước dùng chung toàn hệ thống
+User              — tài khoản đăng nhập, tách biệt khỏi schema nghiệp vụ
 ```
 
 ### Đặc biệt
-- **PhuongTien**: PK là `bienSo` (VARCHAR, string) thay vì INT
+- **PhuongTien**: PK là `bienSo`... thực chất PK là `ID` (autoincrement), `bienSo` chỉ là field thường
 - **HoaDonTapHoa**: PK là `maHoaDon` (VARCHAR 13, string) — tự sinh `TH+YYYYMMDD+STT`
+- **PhieuThuDienNuoc**: khóa chính riêng (`phieuThuDienNuocId`), nhưng ràng buộc `@@unique([phongId, thangNam, lanGhi])` — quan hệ 1-1 với `DienNuoc` qua composite key
+- **LichSuMuaThietBi**: lưu lịch sử từng lần mua thiết bị (số lượng, đơn giá, ngày mua) gắn với `ThietBi`
+- **ThongBao**: không có cột `isDelete` — không áp dụng soft delete như các bảng khác; có cột `daDoc` để đánh dấu đã xem
+- **ThongKeSnapshot**: `kyThongKe` là unique key (định dạng kỳ thống kê), dữ liệu lưu dạng `Json`, có `hetHanLuc` để phục vụ cơ chế cache/hết hạn snapshot
+- **CauHinhGia**: bảng cấu hình dùng chung (kiểu singleton), lưu giá điện/nước mặc định áp cho toàn hệ thống
 - **LapRap**: Bảng junction Phong ↔ ThietBi, có thêm `ngayLap`, `soLuong`
 - **User**: Bảng riêng cho auth, không liên kết với schema nghiệp vụ
 - **1 role duy nhất**: `admin` — chủ phòng trọ quản lý toàn bộ hệ thống
-- **Soft delete**: Tất cả bảng có `isDelete BOOLEAN DEFAULT false`; `DELETE` endpoint chỉ set `isDelete = true`
+- **Soft delete**: Hầu hết các bảng có `isDelete BOOLEAN DEFAULT false`; `DELETE` endpoint chỉ set `isDelete = true` (ngoại lệ: `ThongBao`, `ThongKeSnapshot`, `CauHinhGia` không có `isDelete`)
 
 ### Key Transform (Prisma → Response)
 
@@ -247,7 +264,7 @@ Backend transform một số key để khớp với Flutter app:
 
 ## 🔍 Search & Filter
 
-Tất cả 18 module đều có endpoint search với filter và pagination:
+Tất cả các module có PK là số nguyên/chuỗi đơn đều có endpoint search với filter và pagination:
 
 ```
 GET /{module}/search?field=value&page=1&limit=10&sort=desc&sortBy=id
@@ -278,11 +295,12 @@ GET /phong/search?trangThai=trong&page=1&limit=5
 GET /hop-dong/search?trangThai=dangThue&ngayKyFrom=2024-01-01
 GET /nguoi-thue/search?hoTen=Nguyen&sdt=090
 GET /phuong-tien/search?hangXe=Honda&mauSac=Den
+GET /thong-bao/search?daDoc=false&page=1
 ```
 
 ---
 
-##  Testing
+## Testing
 
 ### Chạy tests
 
@@ -300,7 +318,9 @@ yarn test:watch
 yarn test:e2e
 ```
 
-### Unit tests — 19 module, 266 test cases
+### Unit tests — 24 module
+
+> Số lượng test case cụ thể cho 5 module mới (PhieuThuDienNuoc, LichSuMuaThietBi, ThongBao, ThongKeSnapshot, CauHinhGia) nên cập nhật lại bằng `yarn test:cov` sau khi bạn viết xong test cho các module này — hiện README chưa có số liệu thật để tránh ghi sai.
 
 | Module | Test cases |
 |--------|-----------|
@@ -310,6 +330,7 @@ yarn test:e2e
 | NguoiThue | ↑ |
 | HopDong | ↑ |
 | DienNuoc | ↑ |
+| **PhieuThuDienNuoc** | ↑ (quan hệ 1-1, composite key) |
 | HoaDonPhong | ↑ |
 | PhieuThuHangThang | ↑ |
 | **PhuongTien** | ↑ (string PK `bienSo`) |
@@ -319,14 +340,18 @@ yarn test:e2e
 | ChiTietTapHoa | ↑ |
 | PhieuThuHdTh | ↑ |
 | ThietBi | ↑ |
+| **LichSuMuaThietBi** | ↑ |
 | LapRap | ↑ |
 | SuaChua | ↑ |
 | HoaDonSuaChua | ↑ |
 | NguoiLuuTruTamThoi | ↑ |
+| **ThongBao** | ↑ (không có soft delete) |
+| **ThongKeSnapshot** | ↑ (snapshot theo kỳ, có hạn dùng) |
+| **CauHinhGia** | ↑ (bảng cấu hình dạng singleton) |
 
 ---
 
-##  API Endpoints
+## API Endpoints
 
 Xem chi tiết: [`docs/API.md`](./docs/API.md)
 
@@ -339,7 +364,8 @@ Xem chi tiết: [`docs/API.md`](./docs/API.md)
 | Phong | `/phong` | Int | ✅ | — | `/:id/listNguoiThue`, `/:id/trang-thai` |
 | NguoiThue | `/nguoi-thue` | Int | ✅ | — | `/:idnt/listRoomNguoiThue`, `/findall` |
 | HopDong | `/hop-dong` | Int | ✅ | — | — |
-| DienNuoc | `/dien-nuoc` | Int | ✅ | — | transform: `phongId`→`PhongID` |
+| DienNuoc | `/dien-nuoc` | Int (composite) | ✅ | — | transform: `phongId`→`PhongID` |
+| **PhieuThuDienNuoc** | `/phieu-thu-dien-nuoc` | Int | ✅ | — | unique theo `phongId+thangNam+lanGhi`, quan hệ 1-1 với DienNuoc |
 | HoaDonPhong | `/hoa-don-phong` | Int | ✅ | ✅ | transform: `hopDongId`→`HopDongID` |
 | PhieuThuHangThang | `/phieu-thu-hang-thang` | Int | ✅ | ✅ | — |
 | **PhuongTien** | `/phuong-tien` | **String** | ✅ | — | PK = bienSo |
@@ -349,10 +375,14 @@ Xem chi tiết: [`docs/API.md`](./docs/API.md)
 | ChiTietTapHoa | `/chi-tiet-tap-hoa` | Int | ✅ | — | Thường tạo inline qua HoaDonTapHoa |
 | PhieuThuHdTh | `/phieu-thu-hdth` | Int | ✅ | — | Thường tạo inline qua HoaDonTapHoa |
 | ThietBi | `/thiet-bi` | Int | ✅ | — | transform: `thietBiId`→`thietBiID` |
+| **LichSuMuaThietBi** | `/lich-su-mua-thiet-bi` | Int | ✅ | — | lịch sử mua theo từng đợt (số lượng, đơn giá, ngày mua) |
 | LapRap | `/lap-rap` | Int | ✅ | — | transform: `phongId`→`PhongID`, `thietBiId`→`thietBiID` |
 | SuaChua | `/sua-chua` | Int | ✅ | — | Response gồm `{ suaChua, hoaDonSuaChua }` |
 | HoaDonSuaChua | `/hoa-don-sua-chua` | Int | ✅ | — | `/:id/trang-thai` endpoint riêng |
 | NguoiLuuTruTamThoi | `/nguoi-luu-tru-tam-thoi` | Int | ✅ | — | search-by-name |
+| **ThongBao** | `/thong-bao` | Int | ✅ | — | không có `isDelete`; có `daDoc` để đánh dấu đã đọc |
+| **ThongKeSnapshot** | `/thong-ke-snapshot` | Int | ✅ | — | `kyThongKe` unique; dữ liệu `Json`; có `hetHanLuc` (cache) |
+| **CauHinhGia** | `/cau-hinh-gia` | Int | — | — | bảng cấu hình dạng singleton (giá điện/nước mặc định) |
 
 ### Endpoint chung mọi module
 
@@ -363,12 +393,12 @@ GET  /{module}/search?q=...       → Tìm kiếm + phân trang
 GET  /{module}/load-balance?id=   → Cuộn tải dần (15 bản ghi)
 GET  /{module}/:id                → Chi tiết
 PATCH /{module}/:id               → Cập nhật
-DELETE /{module}/:id              → Xóa (soft delete)
+DELETE /{module}/:id              → Xóa (soft delete, trừ ThongBao/ThongKeSnapshot/CauHinhGia)
 ```
 
 ---
 
-##  Prisma Commands
+## Prisma Commands
 
 ```bash
 yarn prisma generate        # Tạo lại Prisma client
