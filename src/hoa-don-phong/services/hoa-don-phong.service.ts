@@ -6,10 +6,14 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateHoaDonPhongDto } from '../dto/create-hoa-don-phong.dto';
+import { ThongKeSnapshotService } from '../../thong-ke/services/thong-ke-snapshot.service';
 
 @Injectable()
 export class HoaDonPhongService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private thongKeSnapshot: ThongKeSnapshotService,
+  ) {}
 
   async getHoaDonInitData(phongId: number, thangNam: string) {
     const thongTinPhong = await this.prisma.phong.findUnique({
@@ -235,12 +239,12 @@ export class HoaDonPhongService {
         isAlreadyBilled,
         existingInvoice: existingInvoice
           ? {
-              maHoaDon: existingInvoice.maHoaDon,
-              soTien: Number(existingInvoice.soTien ?? 0),
-              ngayLap: existingInvoice.ngayLap,
-              trangThai: existingInvoice.trangThai,
-              chiTietJson: existingInvoice.chiTietJson,
-            }
+            maHoaDon: existingInvoice.maHoaDon,
+            soTien: Number(existingInvoice.soTien ?? 0),
+            ngayLap: existingInvoice.ngayLap,
+            trangThai: existingInvoice.trangThai,
+            chiTietJson: existingInvoice.chiTietJson,
+          }
           : null,
       });
     }
@@ -281,12 +285,12 @@ export class HoaDonPhongService {
         if (typeof parsedList === 'string') {
           try {
             parsedList = JSON.parse(parsedList);
-          } catch (_) {}
+          } catch (_) { }
         }
         if (typeof parsedList === 'string') {
           try {
             parsedList = JSON.parse(parsedList);
-          } catch (_) {}
+          } catch (_) { }
         }
 
         if (Array.isArray(parsedList)) {
@@ -452,6 +456,9 @@ export class HoaDonPhongService {
 
         createdInvoices.push(hoaDonMoi);
       }
+
+      // Thêm lại: invalidate snapshot thống kê sau khi tạo hóa đơn / chốt điện nước
+      await this.thongKeSnapshot.invalidateAll(tx);
 
       return {
         success: true,
@@ -648,15 +655,20 @@ export class HoaDonPhongService {
       );
     }
 
-    const hoaDonDaXoa = await this.prisma.hoaDonPhong.update({
-      where: { maHoaDon: maHoaDon },
-      data: { isDelete: true },
-    });
+    // Bọc trong transaction để invalidate snapshot thống kê cùng lúc với việc xóa
+    return await this.prisma.$transaction(async (tx) => {
+      const hoaDonDaXoa = await tx.hoaDonPhong.update({
+        where: { maHoaDon: maHoaDon },
+        data: { isDelete: true },
+      });
 
-    return {
-      success: true,
-      message: `Đã xóa hóa đơn ${maHoaDon} thành công! Hợp đồng này đã được rollback về trạng thái chờ tạo hóa đơn.`,
-      data: hoaDonDaXoa,
-    };
+      await this.thongKeSnapshot.invalidateAll(tx);
+
+      return {
+        success: true,
+        message: `Đã xóa hóa đơn ${maHoaDon} thành công! Hợp đồng này đã được rollback về trạng thái chờ tạo hóa đơn.`,
+        data: hoaDonDaXoa,
+      };
+    });
   }
 }

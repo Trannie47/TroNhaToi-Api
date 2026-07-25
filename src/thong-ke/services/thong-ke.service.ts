@@ -1,12 +1,10 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ThongKeQueryDto } from "../dto/thong-ke-query.dto";
 
 @Injectable()
 export class ThongKeService {
-  private readonly snapshotTtlMs = 1 * 10 * 1000;
-
   constructor(private readonly prisma: PrismaService) { }
 
   /**
@@ -16,22 +14,30 @@ export class ThongKeService {
    */
 
   /**
+   * ==========================================
    * DECIMAL -> NUMBER
+   * ==========================================
    */
   private toNumber(value: Prisma.Decimal | number | null | undefined): number {
     if (value === null || value === undefined) {
       return 0;
     }
+
     return Number(value);
   }
 
   /**
-   * THÁNG/NĂM (VD: 07/2026)
+   * ==========================================
+   * THÁNG/NĂM
+   * VD:
+   * 07/2026
+   * ==========================================
    */
   private getThangNam(dto: ThongKeQueryDto): string | null {
     if (!dto.thang) {
       return null;
     }
+
     return `${String(dto.thang).padStart(2, "0")}/${dto.nam}`;
   }
 
@@ -39,6 +45,7 @@ export class ThongKeService {
     if (!dto.thang) {
       return String(dto.nam);
     }
+
     return `${dto.nam}-${String(dto.thang).padStart(2, "0")}`;
   }
 
@@ -61,17 +68,131 @@ export class ThongKeService {
     ].every(Array.isArray);
   }
 
+  private async getCurrentRevision(): Promise<number | null> {
+    const revision = await this.prisma.thongKeRevision.findUnique({
+      where: { id: 1 },
+      select: { phienBan: true },
+    });
+
+    return revision?.phienBan ?? null;
+  }
+
+  private async refreshTimeDependentData(
+    value: unknown,
+  ): Promise<Prisma.InputJsonValue> {
+    const [phong, nguoiThue, hopDongSapHet] = await Promise.all([
+      this.getThongKePhong(),
+      this.getThongKeNguoiThue(),
+      this.getHopDongSapHet(),
+    ]);
+
+    return this.toJson({
+      ...(value as Record<string, unknown>),
+      phong,
+      nguoiThue,
+      hopDongSapHet,
+    });
+  }
+
+  private async saveSnapshotIfRevisionMatches(
+    dto: ThongKeQueryDto,
+    kyThongKe: string,
+    duLieu: Prisma.InputJsonValue,
+    expectedRevision: number | null,
+  ): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const revisionToSave = expectedRevision ?? 0;
+
+      if (expectedRevision === null) {
+        const revision = await tx.thongKeRevision.upsert({
+          where: { id: 1 },
+          create: {
+            id: 1,
+            phienBan: 0,
+          },
+          update: {
+            phienBan: {
+              increment: 0,
+            },
+          },
+          select: {
+            phienBan: true,
+          },
+        });
+
+        if (revision.phienBan !== revisionToSave) {
+          return false;
+        }
+
+        await tx.thongKeSnapshot.deleteMany();
+      } else {
+        const lockedRevision = await tx.thongKeRevision.updateMany({
+          where: {
+            id: 1,
+            phienBan: revisionToSave,
+          },
+          data: {
+            phienBan: {
+              increment: 0,
+            },
+          },
+        });
+
+        if (lockedRevision.count === 0) {
+          return false;
+        }
+      }
+
+      const tinhTuLuc = new Date();
+
+      await tx.thongKeSnapshot.upsert({
+        where: {
+          kyThongKe,
+        },
+        create: {
+          kyThongKe,
+          nam: dto.nam,
+          thang: dto.thang ?? null,
+          phienBan: revisionToSave,
+          duLieu,
+          tinhTuLuc,
+        },
+        update: {
+          nam: dto.nam,
+          thang: dto.thang ?? null,
+          phienBan: revisionToSave,
+          duLieu,
+          tinhTuLuc,
+        },
+      });
+
+      return true;
+    });
+  }
+
   /**
+   * ==========================================
    * KHOẢNG NGÀY
+   * ==========================================
    */
   private getDateRange(dto: ThongKeQueryDto) {
     const from = new Date(dto.nam, dto.thang ? dto.thang - 1 : 0, 1);
+
     const to = dto.thang
       ? new Date(dto.nam, dto.thang, 0, 23, 59, 59, 999)
       : new Date(dto.nam, 11, 31, 23, 59, 59, 999);
 
-    return { from, to };
+    return {
+      from,
+      to,
+    };
   }
+
+  /**
+   * ==========================================
+   * TỔNG QUAN
+   * ==========================================
+   */
 
   /**
    * ==========================================
@@ -80,6 +201,7 @@ export class ThongKeService {
    */
   private async getTongDoanhThu(dto: ThongKeQueryDto) {
     const thangNam = this.getThangNam(dto);
+
     const { from, to } = this.getDateRange(dto);
 
     const [hoaDonPhong, hoaDonGuiXe, hoaDonTapHoa] = await Promise.all([
@@ -90,8 +212,14 @@ export class ThongKeService {
         where: {
           isDelete: false,
           ...(thangNam
-            ? { thangNam }
-            : { thangNam: { endsWith: `${dto.nam}` } }),
+            ? {
+              thangNam,
+            }
+            : {
+              thangNam: {
+                endsWith: `${dto.nam}`,
+              },
+            }),
         },
       }),
 
@@ -102,8 +230,14 @@ export class ThongKeService {
         where: {
           isDelete: false,
           ...(thangNam
-            ? { thangNam }
-            : { thangNam: { endsWith: `${dto.nam}` } }),
+            ? {
+              thangNam,
+            }
+            : {
+              thangNam: {
+                endsWith: `${dto.nam}`,
+              },
+            }),
         },
       }),
 
@@ -122,7 +256,9 @@ export class ThongKeService {
     ]);
 
     const doanhThuPhong = this.toNumber(hoaDonPhong._sum.soTien);
+
     const doanhThuGuiXe = this.toNumber(hoaDonGuiXe._sum.soTien);
+
     const doanhThuTapHoa = this.toNumber(hoaDonTapHoa._sum.tongTien);
 
     return {
@@ -135,7 +271,7 @@ export class ThongKeService {
 
   /**
    * ==========================================
-   * TỔNG ĐÃ THU (BAO GỒM CẢ ĐIỆN NƯỚC)
+   * TỔNG ĐÃ THU
    * ==========================================
    */
   private async getTongDaThu(dto: ThongKeQueryDto) {
@@ -167,7 +303,6 @@ export class ThongKeService {
           },
         },
       }),
-
       this.prisma.phieuThuDienNuoc.aggregate({
         _sum: {
           soTien: true,
@@ -183,6 +318,7 @@ export class ThongKeService {
     ]);
 
     const daThuPhong = this.toNumber(thuPhong._sum.soTien);
+
     const daThuTapHoa = this.toNumber(thuTapHoa._sum.soTien);
     const daThuDienNuoc = this.toNumber(thuDienNuoc._sum.soTien);
 
@@ -202,11 +338,12 @@ export class ThongKeService {
   private async getTongCongNo(dto: ThongKeQueryDto) {
     const [doanhThu, daThu] = await Promise.all([
       this.getTongDoanhThu(dto),
+
       this.getTongDaThu(dto),
     ]);
 
     return {
-      tongCongNo: Math.max(doanhThu.tongDoanhThu - daThu.tongDaThu, 0),
+      tongCongNo: doanhThu.tongDoanhThu - daThu.tongDaThu,
     };
   }
 
@@ -250,12 +387,13 @@ export class ThongKeService {
       }),
     ]);
 
+
     const tongTienMuaThietBi = lichSuMuaThietBi.reduce(
       (sum, r) => sum + r.soLuong * this.toNumber(r.donGia),
       0,
     );
 
-    const tongTienSuaChua = this.toNumber(hoaDonSuaChua._sum.giaTien);
+    const tongTienSuaChua = this.toNumber(hoaDonSuaChua._sum.giaTien) ;
     console.log(tongTienSuaChua);
     return {
       tongChiPhi: tongTienSuaChua + tongTienMuaThietBi,
@@ -263,6 +401,7 @@ export class ThongKeService {
       tongTienMuaThietBi: tongTienMuaThietBi,
     };
   }
+
   /**
    * ==========================================
    * THỐNG KÊ
@@ -298,7 +437,9 @@ export class ThongKeService {
     ]);
 
     const phongDangThue = hopDongConHan.length;
+
     const phongTrong = tongPhong - phongDangThue;
+
     const tiLeLapDay =
       tongPhong === 0
         ? 0
@@ -407,7 +548,7 @@ export class ThongKeService {
         },
       }),
 
-        this.prisma.suaChua.count({
+      this.prisma.suaChua.count({
         where: {
           isDelete: false,
         },
@@ -426,6 +567,12 @@ export class ThongKeService {
 
   /**
    * ==========================================
+   * BIỂU ĐỒ
+   * ==========================================
+   */
+
+  /**
+   * ==========================================
    * CHART DOANH THU 12 THÁNG
    * ==========================================
    */
@@ -434,7 +581,9 @@ export class ThongKeService {
 
     for (let thang = 1; thang <= 12; thang++) {
       const thangNam = `${String(thang).padStart(2, "0")}/${nam}`;
+
       const from = new Date(nam, thang - 1, 1);
+
       const to = new Date(nam, thang, 0, 23, 59, 59, 999);
 
       const [hoaDonPhong, hoaDonGuiXe, hoaDonTapHoa] = await Promise.all([
@@ -488,9 +637,10 @@ export class ThongKeService {
 
   /**
    * ==========================================
-   * TOP PHÒNG DOANH THU CAO NHẤT
+   * TOP  PHÒNG DOANH THU CAO NHẤT
    * ==========================================
    */
+
   private async getTopPhong(dto: ThongKeQueryDto) {
     const thangNam = this.getThangNam(dto);
     const { from, to } = this.getDateRange(dto);
@@ -799,12 +949,21 @@ export class ThongKeService {
 
   /**
    * ==========================================
-   * HỢP ĐỒNG SẮP HẾT HẠN (Trong 30 ngày tới)
+   * HỢP ĐỒNG
+   * ==========================================
+   */
+
+  /**
+   * ==========================================
+   * HỢP ĐỒNG SẮP HẾT HẠN
+   * (Trong 30 ngày tới)
    * ==========================================
    */
   private async getHopDongSapHet() {
     const today = new Date();
+
     const after30Days = new Date();
+
     after30Days.setDate(after30Days.getDate() + 30);
 
     const hopDongSapHet = await this.prisma.hopDong.findMany({
@@ -816,6 +975,7 @@ export class ThongKeService {
           lte: after30Days,
         },
       },
+
       include: {
         phong: {
           select: {
@@ -823,6 +983,7 @@ export class ThongKeService {
             tenPhong: true,
           },
         },
+
         nguoithue: {
           select: {
             idnt: true,
@@ -831,9 +992,11 @@ export class ThongKeService {
           },
         },
       },
+
       orderBy: {
         ngayHetHan: "asc",
       },
+
       take: 5,
     });
 
@@ -842,9 +1005,10 @@ export class ThongKeService {
 
   /**
    * ==========================================
-   * API TÍNH THỐNG KÊ
+   * API  TÍNH THỐNG KÊ
    * ==========================================
    */
+
   private async tinhThongKe(dto: ThongKeQueryDto) {
     const [
       doanhThu,
@@ -862,17 +1026,29 @@ export class ThongKeService {
       hopDongSapHet,
     ] = await Promise.all([
       this.getTongDoanhThu(dto),
+
       this.getTongDaThu(dto),
+
       this.getTongCongNo(dto),
+
       this.getTongChiPhi(dto),
+
       this.getThongKePhong(),
+
       this.getThongKeNguoiThue(),
+
       this.getThongKeThietBi(),
+
       this.getChartDoanhThu(dto.nam),
+
       this.getTopPhong(dto),
+
       this.getTopCongNo(dto),
+
       this.getTopHangHoa(dto),
+
       this.getTopThietBiSua(dto),
+
       this.getHopDongSapHet(),
     ]);
 
@@ -894,9 +1070,15 @@ export class ThongKeService {
   }
 
   async getThongKe(dto: ThongKeQueryDto) {
-    const kyThongKe = this.getKyThongKe(dto);
+    return this.getThongKeWithRetry(dto, 0);
+  }
 
-    const now = new Date();
+  private async getThongKeWithRetry(
+    dto: ThongKeQueryDto,
+    retryCount: number,
+  ): Promise<Prisma.InputJsonValue> {
+    const kyThongKe = this.getKyThongKe(dto);
+    const currentRevision = await this.getCurrentRevision();
 
     const snapshot = await this.prisma.thongKeSnapshot.findUnique({
       where: {
@@ -906,38 +1088,33 @@ export class ThongKeService {
 
     if (
       snapshot &&
-      snapshot.hetHanLuc > now &&
+      currentRevision !== null &&
+      snapshot.phienBan === currentRevision &&
       this.isCurrentSnapshot(snapshot.duLieu)
     ) {
-      return snapshot.duLieu;
+      return this.refreshTimeDependentData(snapshot.duLieu);
     }
 
     const duLieu = await this.tinhThongKe(dto);
 
     const duLieuJson = this.toJson(duLieu);
 
-    const hetHanLuc = new Date(now.getTime() + this.snapshotTtlMs);
+    const saved = await this.saveSnapshotIfRevisionMatches(
+      dto,
+      kyThongKe,
+      duLieuJson,
+      currentRevision,
+    );
 
-    await this.prisma.thongKeSnapshot.upsert({
-      where: {
-        kyThongKe,
-      },
-      create: {
-        kyThongKe,
-        nam: dto.nam,
-        thang: dto.thang ?? null,
-        duLieu: duLieuJson,
-        tinhTuLuc: now,
-        hetHanLuc,
-      },
-      update: {
-        nam: dto.nam,
-        thang: dto.thang ?? null,
-        duLieu: duLieuJson,
-        tinhTuLuc: now,
-        hetHanLuc,
-      },
-    });
+    if (!saved) {
+      if (retryCount >= 2) {
+        throw new ServiceUnavailableException(
+          "Dữ liệu thống kê đang được cập nhật, vui lòng thử lại.",
+        );
+      }
+
+      return this.getThongKeWithRetry(dto, retryCount + 1);
+    }
 
     return duLieuJson;
   }

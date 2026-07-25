@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreatePhieuThuHangThangDto } from '../dto/create-phieu-thu-hang-thang.dto';
+import { ThongKeSnapshotService } from '../../thong-ke/services/thong-ke-snapshot.service';
 
 @Injectable()
 export class PhieuThuHangThangService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private thongKeSnapshot: ThongKeSnapshotService,
+  ) {}
 
   
  //TÍNH TOÁN & CẬP NHẬT TRẠNG THÁI HÓA ĐƠN
@@ -84,6 +88,9 @@ export class PhieuThuHangThangService {
       // Tự động tính toán & Cập nhật lại trạng thái Hóa đơn
       const resultStat = await this.capNhatTrangThaiHoaDon(tx, maHoaDon);
 
+      // Invalidate snapshot thống kê vì đã phát sinh tiền thu mới
+      await this.thongKeSnapshot.invalidateAll(tx);
+
       return {
         success: true,
         message: 'Lập phiếu thu thành công!',
@@ -134,6 +141,9 @@ export class PhieuThuHangThangService {
       if (phieuThu.maHoaDon) {
         stat = await this.capNhatTrangThaiHoaDon(tx, phieuThu.maHoaDon);
       }
+
+      // Invalidate snapshot thống kê vì đã xóa 1 khoản thu (ảnh hưởng công nợ/doanh thu)
+      await this.thongKeSnapshot.invalidateAll(tx);
 
       return {
         success: true,
