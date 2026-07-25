@@ -74,7 +74,7 @@ model HopDong {
   ghiChu         String?       @db.Text
   anhHopDong     String?       @db.Text
   isDelete       Boolean       @default(false)
-  hoadonphong    HoaDonPhong[]
+  hoaDonPhong    HoaDonPhong[]
   nguoithue      NguoiThue     @relation(fields: [idnt], references: [idnt], onUpdate: Restrict, map: "HopDong_Fk1")
   phong          Phong?        @relation(fields: [phongId], references: [phongId], onDelete: Restrict, onUpdate: Restrict, map: "HopDong_Fk2")
 
@@ -130,14 +130,22 @@ model PhieuThuDienNuoc {
 
 model HoaDonPhong {
   maHoaDon          String              @id @db.Char(23)
-  thangNam          String?             @db.VarChar(20)
-  soTien            Decimal?            @db.Decimal(10, 2)
   hopDongId         String?             @map("HopDongID") @db.VarChar(30)
+  thangNam          String?             @db.VarChar(20)
+  ngayLap           DateTime?           @default(now())
+
+  soTien            Decimal?            @db.Decimal(10, 2)
+  chiTietJson       String?             @db.Text
+
+
+  trangThai         Int?      @default(0) // 0: Chưa thanh toán, 1: thanh toán một phần  2: Đã thanh toán
+  ghiChu            String?   @db.Text
   isDelete          Boolean             @default(false)
-  hopdong           HopDong?            @relation(fields: [hopDongId], references: [hopDongId], onDelete: Restrict, onUpdate: Restrict, map: "HoaDonPhong_HopDong")
+
+  hopDong           HopDong?             @relation(fields: [hopDongId], references: [hopDongId], onDelete: Restrict, onUpdate: Restrict, map: "HoaDonHangThang_HopDong")   
   phieuThuHangThang PhieuThuHangThang[]
 
-  @@index([hopDongId], map: "HoaDonPhong_HopDong")
+  @@index([hopDongId], map: "HopDongID")  
   @@map("hoadonphong")
 }
 

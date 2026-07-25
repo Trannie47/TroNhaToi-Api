@@ -16,30 +16,22 @@ export class ThongKeService {
    */
 
   /**
-   * ==========================================
    * DECIMAL -> NUMBER
-   * ==========================================
    */
   private toNumber(value: Prisma.Decimal | number | null | undefined): number {
     if (value === null || value === undefined) {
       return 0;
     }
-
     return Number(value);
   }
 
   /**
-   * ==========================================
-   * THÁNG/NĂM
-   * VD:
-   * 07/2026
-   * ==========================================
+   * THÁNG/NĂM (VD: 07/2026)
    */
   private getThangNam(dto: ThongKeQueryDto): string | null {
     if (!dto.thang) {
       return null;
     }
-
     return `${String(dto.thang).padStart(2, "0")}/${dto.nam}`;
   }
 
@@ -47,7 +39,6 @@ export class ThongKeService {
     if (!dto.thang) {
       return String(dto.nam);
     }
-
     return `${dto.nam}-${String(dto.thang).padStart(2, "0")}`;
   }
 
@@ -71,28 +62,16 @@ export class ThongKeService {
   }
 
   /**
-   * ==========================================
    * KHOẢNG NGÀY
-   * ==========================================
    */
   private getDateRange(dto: ThongKeQueryDto) {
     const from = new Date(dto.nam, dto.thang ? dto.thang - 1 : 0, 1);
-
     const to = dto.thang
       ? new Date(dto.nam, dto.thang, 0, 23, 59, 59, 999)
       : new Date(dto.nam, 11, 31, 23, 59, 59, 999);
 
-    return {
-      from,
-      to,
-    };
+    return { from, to };
   }
-
-  /**
-   * ==========================================
-   * TỔNG QUAN
-   * ==========================================
-   */
 
   /**
    * ==========================================
@@ -101,7 +80,6 @@ export class ThongKeService {
    */
   private async getTongDoanhThu(dto: ThongKeQueryDto) {
     const thangNam = this.getThangNam(dto);
-
     const { from, to } = this.getDateRange(dto);
 
     const [hoaDonPhong, hoaDonGuiXe, hoaDonTapHoa] = await Promise.all([
@@ -112,14 +90,8 @@ export class ThongKeService {
         where: {
           isDelete: false,
           ...(thangNam
-            ? {
-              thangNam,
-            }
-            : {
-              thangNam: {
-                endsWith: `${dto.nam}`,
-              },
-            }),
+            ? { thangNam }
+            : { thangNam: { endsWith: `${dto.nam}` } }),
         },
       }),
 
@@ -130,14 +102,8 @@ export class ThongKeService {
         where: {
           isDelete: false,
           ...(thangNam
-            ? {
-              thangNam,
-            }
-            : {
-              thangNam: {
-                endsWith: `${dto.nam}`,
-              },
-            }),
+            ? { thangNam }
+            : { thangNam: { endsWith: `${dto.nam}` } }),
         },
       }),
 
@@ -156,9 +122,7 @@ export class ThongKeService {
     ]);
 
     const doanhThuPhong = this.toNumber(hoaDonPhong._sum.soTien);
-
     const doanhThuGuiXe = this.toNumber(hoaDonGuiXe._sum.soTien);
-
     const doanhThuTapHoa = this.toNumber(hoaDonTapHoa._sum.tongTien);
 
     return {
@@ -171,13 +135,13 @@ export class ThongKeService {
 
   /**
    * ==========================================
-   * TỔNG ĐÃ THU
+   * TỔNG ĐÃ THU (BAO GỒM CẢ ĐIỆN NƯỚC)
    * ==========================================
    */
   private async getTongDaThu(dto: ThongKeQueryDto) {
     const { from, to } = this.getDateRange(dto);
 
-    const [thuPhong, thuTapHoa] = await Promise.all([
+    const [thuPhong, thuTapHoa, thuDienNuoc] = await Promise.all([
       this.prisma.phieuThuHangThang.aggregate({
         _sum: {
           soTien: true,
@@ -203,16 +167,30 @@ export class ThongKeService {
           },
         },
       }),
+
+      this.prisma.phieuThuDienNuoc.aggregate({
+        _sum: {
+          soTien: true,
+        },
+        where: {
+          isDelete: false,
+          ngayThu: {
+            gte: from,
+            lte: to,
+          },
+        },
+      }),
     ]);
 
     const daThuPhong = this.toNumber(thuPhong._sum.soTien);
-
     const daThuTapHoa = this.toNumber(thuTapHoa._sum.soTien);
+    const daThuDienNuoc = this.toNumber(thuDienNuoc._sum.soTien);
 
     return {
       daThuPhong,
       daThuTapHoa,
-      tongDaThu: daThuPhong + daThuTapHoa,
+      daThuDienNuoc,
+      tongDaThu: daThuPhong + daThuTapHoa + daThuDienNuoc,
     };
   }
 
@@ -224,12 +202,11 @@ export class ThongKeService {
   private async getTongCongNo(dto: ThongKeQueryDto) {
     const [doanhThu, daThu] = await Promise.all([
       this.getTongDoanhThu(dto),
-
       this.getTongDaThu(dto),
     ]);
 
     return {
-      tongCongNo: doanhThu.tongDoanhThu - daThu.tongDaThu,
+      tongCongNo: Math.max(doanhThu.tongDoanhThu - daThu.tongDaThu, 0),
     };
   }
 
@@ -321,9 +298,7 @@ export class ThongKeService {
     ]);
 
     const phongDangThue = hopDongConHan.length;
-
     const phongTrong = tongPhong - phongDangThue;
-
     const tiLeLapDay =
       tongPhong === 0
         ? 0
@@ -432,7 +407,7 @@ export class ThongKeService {
         },
       }),
 
-      this.prisma.suaChua.count({
+        this.prisma.suaChua.count({
         where: {
           isDelete: false,
         },
@@ -451,12 +426,6 @@ export class ThongKeService {
 
   /**
    * ==========================================
-   * BIỂU ĐỒ
-   * ==========================================
-   */
-
-  /**
-   * ==========================================
    * CHART DOANH THU 12 THÁNG
    * ==========================================
    */
@@ -465,9 +434,7 @@ export class ThongKeService {
 
     for (let thang = 1; thang <= 12; thang++) {
       const thangNam = `${String(thang).padStart(2, "0")}/${nam}`;
-
       const from = new Date(nam, thang - 1, 1);
-
       const to = new Date(nam, thang, 0, 23, 59, 59, 999);
 
       const [hoaDonPhong, hoaDonGuiXe, hoaDonTapHoa] = await Promise.all([
@@ -521,10 +488,9 @@ export class ThongKeService {
 
   /**
    * ==========================================
-   * TOP
+   * TOP PHÒNG DOANH THU CAO NHẤT
    * ==========================================
    */
-
   private async getTopPhong(dto: ThongKeQueryDto) {
     const thangNam = this.getThangNam(dto);
     const { from, to } = this.getDateRange(dto);
@@ -545,7 +511,7 @@ export class ThongKeService {
           },
           select: { soTien: true },
         },
-        hopdong: {
+        hopDong: {
           select: {
             phongId: true,
             phong: {
@@ -571,7 +537,7 @@ export class ThongKeService {
     >();
 
     for (const invoice of invoices) {
-      const room = invoice.hopdong?.phong;
+      const room = invoice.hopDong?.phong;
       if (!room) continue;
 
       const revenue = this.toNumber(invoice.soTien);
@@ -614,17 +580,12 @@ export class ThongKeService {
             : { thangNam: { endsWith: `${dto.nam}` } }),
         },
         select: {
+          maHoaDon: true,
           soTien: true,
-          phieuThuHangThang: {
-            where: {
-              isDelete: false,
-              ngayThu: { gte: from, lte: to },
-            },
-            select: { soTien: true },
-          },
-          hopdong: {
+          thangNam: true,
+          trangThai: true,
+          hopDong: {
             select: {
-              idnt: true,
               nguoithue: {
                 select: {
                   idnt: true,
@@ -632,6 +593,10 @@ export class ThongKeService {
                 },
               },
             },
+          },
+          phieuThuHangThang: {
+            where: { isDelete: false },
+            select: { soTien: true },
           },
         },
       }),
@@ -690,12 +655,13 @@ export class ThongKeService {
       tenants.set(tenant.idnt, current);
     };
 
+    // Gom nợ hóa đơn phòng cá nhân
     for (const invoice of roomInvoices) {
       addDebt(
-        invoice.hopdong?.nguoithue,
+        invoice.hopDong?.nguoithue,
         this.toNumber(invoice.soTien),
-        invoice.phieuThuHangThang.reduce(
-          (sum, receipt) => sum + this.toNumber(receipt.soTien),
+        (invoice.phieuThuHangThang || []).reduce(
+          (sum, phieu) => sum + this.toNumber(phieu.soTien),
           0,
         ),
       );
@@ -833,21 +799,12 @@ export class ThongKeService {
 
   /**
    * ==========================================
-   * HỢP ĐỒNG
-   * ==========================================
-   */
-
-  /**
-   * ==========================================
-   * HỢP ĐỒNG SẮP HẾT HẠN
-   * (Trong 30 ngày tới)
+   * HỢP ĐỒNG SẮP HẾT HẠN (Trong 30 ngày tới)
    * ==========================================
    */
   private async getHopDongSapHet() {
     const today = new Date();
-
     const after30Days = new Date();
-
     after30Days.setDate(after30Days.getDate() + 30);
 
     const hopDongSapHet = await this.prisma.hopDong.findMany({
@@ -859,7 +816,6 @@ export class ThongKeService {
           lte: after30Days,
         },
       },
-
       include: {
         phong: {
           select: {
@@ -867,7 +823,6 @@ export class ThongKeService {
             tenPhong: true,
           },
         },
-
         nguoithue: {
           select: {
             idnt: true,
@@ -876,11 +831,9 @@ export class ThongKeService {
           },
         },
       },
-
       orderBy: {
         ngayHetHan: "asc",
       },
-
       take: 5,
     });
 
@@ -889,10 +842,9 @@ export class ThongKeService {
 
   /**
    * ==========================================
-   * API
+   * API TÍNH THỐNG KÊ
    * ==========================================
    */
-
   private async tinhThongKe(dto: ThongKeQueryDto) {
     const [
       doanhThu,
@@ -910,29 +862,17 @@ export class ThongKeService {
       hopDongSapHet,
     ] = await Promise.all([
       this.getTongDoanhThu(dto),
-
       this.getTongDaThu(dto),
-
       this.getTongCongNo(dto),
-
       this.getTongChiPhi(dto),
-
       this.getThongKePhong(),
-
       this.getThongKeNguoiThue(),
-
       this.getThongKeThietBi(),
-
       this.getChartDoanhThu(dto.nam),
-
       this.getTopPhong(dto),
-
       this.getTopCongNo(dto),
-
       this.getTopHangHoa(dto),
-
       this.getTopThietBiSua(dto),
-
       this.getHopDongSapHet(),
     ]);
 

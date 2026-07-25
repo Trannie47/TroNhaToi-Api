@@ -1,292 +1,128 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreatePhieuThuDienNuocDto } from '../dto/create-phieu-thu-dien-nuoc.dto';
-import { UpdatePhieuThuDienNuocDto } from '../dto/update-phieu-thu-dien-nuoc.dto';
-import { SearchPhieuThuDienNuocDto } from '../dto/search-phieu-thu-dien-nuoc.dto';
 
 @Injectable()
 export class PhieuThuDienNuocService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.phieuThuDienNuoc.findMany({
-      where: {
-        isDelete: false,
-      },
-      include: {
-        dienNuoc: {
-          include: {
-            phong: true,
-          },
-        },
-      },
-      orderBy: {
-        phieuThuDienNuocId: 'desc',
-      },
-    });
-  }
-
-  async findOne(id: number) {
-    const item = await this.prisma.phieuThuDienNuoc.findFirst({
-      where: {
-        phieuThuDienNuocId: id,
-        isDelete: false,
-      },
-      include: {
-        dienNuoc: {
-          include: {
-            phong: true,
-          },
-        },
-      },
-    });
-
-    if (!item) {
-      throw new NotFoundException(
-        `Phiếu thu điện nước ${id} không tồn tại`,
-      );
-    }
-
-    return item;
-  }
-
+  //LẬP PHIẾU THU ĐIỆN NƯỚC (THU 1 LẦN)
   async create(dto: CreatePhieuThuDienNuocDto) {
-    const dienNuoc = await this.prisma.dienNuoc.findUnique({
+    const { phongId, thangNam, lanGhi, soTien, ghiChu } = dto;
+
+    const banGhiDN = await this.prisma.dienNuoc.findUnique({
       where: {
         phongId_thangNam_lanGhi: {
-          phongId: dto.phongId,
-          thangNam: dto.thangNam,
-          lanGhi: dto.lanGhi,
+          phongId: Number(phongId),
+          thangNam: thangNam,
+          lanGhi: Number(lanGhi),
         },
-      },
-      include: {
-        phieuThuDienNuoc: true,
       },
     });
 
-    if (!dienNuoc) {
+    if (!banGhiDN || banGhiDN.TrangThai === 0) {
       throw new NotFoundException(
-        'Không tìm thấy bản ghi điện nước.',
+        `Không tìm thấy dữ liệu chốt điện nước lần ${lanGhi} của phòng ${phongId}!`,
       );
     }
 
-    if (dienNuoc.phieuThuDienNuoc) {
-      throw new BadRequestException(
-        'Điện nước này đã có phiếu thu.',
-      );
+    const numSoTien = Number(soTien);
+    if (isNaN(numSoTien) || numSoTien <= 0) {
+      throw new BadRequestException('Số tiền thu điện nước phải lớn hơn 0đ!');
     }
 
-    return this.prisma.phieuThuDienNuoc.create({
-      data: {
-        phongId: dto.phongId,
-        thangNam: dto.thangNam,
-        lanGhi: dto.lanGhi,
-        ngayThu: dto.ngayThu
-          ? new Date(dto.ngayThu)
-          : new Date(),
-        soTien: dto.soTien,
-        ghiChu: dto.ghiChu,
-      },
-      include: {
-        dienNuoc: {
-          include: {
-            phong: true,
+    return await this.prisma.$transaction(async (tx) => {
+      const phieuThuDN = await tx.phieuThuDienNuoc.upsert({
+        where: {
+          phongId_thangNam_lanGhi: {
+            phongId: Number(phongId),
+            thangNam: thangNam,
+            lanGhi: Number(lanGhi),
           },
         },
-      },
+        update: {
+          soTien: numSoTien,
+          ngayThu: new Date(),
+          ghiChu: ghiChu ?? `Thu tiền điện nước tháng ${thangNam} (Lần ${lanGhi})`,
+          isDelete: false,
+        },
+        create: {
+          phongId: Number(phongId),
+          thangNam: thangNam,
+          lanGhi: Number(lanGhi),
+          soTien: numSoTien,
+          ngayThu: new Date(),
+          ghiChu: ghiChu ?? `Thu tiền điện nước tháng ${thangNam} (Lần ${lanGhi})`,
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Lập phiếu thu điện nước thành công!',
+        data: phieuThuDN,
+      };
     });
   }
 
-  async update(
-    id: number,
-    dto: UpdatePhieuThuDienNuocDto,
-  ) {
-    await this.findOne(id);
-
-    return this.prisma.phieuThuDienNuoc.update({
-      where: {
-        phieuThuDienNuocId: id,
-      },
-      data: {
-        ...(dto.phongId !== undefined && {
-          phongId: dto.phongId,
-        }),
-        ...(dto.thangNam !== undefined && {
-          thangNam: dto.thangNam,
-        }),
-        ...(dto.lanGhi !== undefined && {
-          lanGhi: dto.lanGhi,
-        }),
-        ...(dto.soTien !== undefined && {
-          soTien: dto.soTien,
-        }),
-        ...(dto.ghiChu !== undefined && {
-          ghiChu: dto.ghiChu,
-        }),
-        ...(dto.ngayThu
-          ? {
-            ngayThu: new Date(dto.ngayThu),
-          }
-          : {}),
-      },
-      include: {
-        dienNuoc: {
-          include: {
-            phong: true,
+  //XÓA HÓA ĐƠN / LẦN CHỐT ĐIỆN NƯỚC & ROLLBACK VỀ TRẠNG THÁI NHÁP (TrangThai = 0)
+  async remove(phongId: number, thangNam: string, lanGhi: number) {
+    return await this.prisma.$transaction(async (tx) => {
+      // 1. Kiểm tra xem lần chốt điện nước này có tồn tại không
+      const banGhiDN = await tx.dienNuoc.findUnique({
+        where: {
+          phongId_thangNam_lanGhi: {
+            phongId: Number(phongId),
+            thangNam: thangNam,
+            lanGhi: Number(lanGhi),
           },
         },
-      },
-    });
-  }
-
-  async remove(id: number) {
-    await this.findOne(id);
-
-    return this.prisma.phieuThuDienNuoc.update({
-      where: {
-        phieuThuDienNuocId: id,
-      },
-      data: {
-        isDelete: true,
-      },
-    });
-  }
-
-  // Các field hợp lệ để sort trực tiếp trên PhieuThuDienNuoc.
-  // Tránh truyền thẳng sortBy của client vào orderBy vì Prisma sẽ throw
-  // nếu field không tồn tại hoặc là field lồng dạng "a.b".
-  private static readonly SORTABLE_FIELDS = new Set([
-    'phieuThuDienNuocId',
-    'ngayThu',
-    'soTien',
-    'thangNam',
-    'lanGhi',
-  ]);
-
-  async search(req: SearchPhieuThuDienNuocDto) {
-    const {
-      ma,
-      limit = 10,
-      offset = 0,
-      sortBy = 'phieuThuDienNuocId',
-      sort = 'desc',
-    } = req;
-
-    const where: any = {
-      isDelete: false,
-    };
-
-    if (ma) {
-      where.OR = [
-        {
-          thangNam: {
-            contains: ma,
-          },
-        },
-        {
-          // PhieuThuDienNuoc không có relation "phong" trực tiếp,
-          // phải đi qua "dienNuoc" trước.
-          dienNuoc: {
-            phong: {
-              tenPhong: {
-                contains: ma,
-              },
-            },
-          },
-        },
-      ];
-    }
-
-    const safeSortBy = PhieuThuDienNuocService.SORTABLE_FIELDS.has(sortBy)
-      ? sortBy
-      : 'phieuThuDienNuocId';
-
-    const [data, total] = await Promise.all([
-      this.prisma.phieuThuDienNuoc.findMany({
-        where,
         include: {
-          dienNuoc: {
-            include: {
-              phong: true,
+          phieuThuDienNuoc: true,
+        },
+      });
+
+      if (!banGhiDN) {
+        throw new NotFoundException(`Không tìm thấy bản ghi chốt điện nước lần ${lanGhi} của phòng ${phongId}!`);
+      }
+
+      // CHẶN XÓA NẾU ĐÃ PHÁT SINH PHIẾU THU TIỀN (VÀ PHIẾU THU ĐÓ CHƯA BỊ XÓA MỀM)
+      if (banGhiDN.phieuThuDienNuoc && !banGhiDN.phieuThuDienNuoc.isDelete) {
+        throw new BadRequestException(
+          `Hóa đơn điện nước lần ${lanGhi} đã phát sinh phiếu thu tiền, không được phép xóa để đảm bảo an toàn dữ liệu!`,
+        );
+      }
+
+      //Xóa mềm phiếu thu điện nước cũ nếu có
+      if (banGhiDN.phieuThuDienNuoc) {
+        await tx.phieuThuDienNuoc.update({
+          where: {
+            phongId_thangNam_lanGhi: {
+              phongId: Number(phongId),
+              thangNam: thangNam,
+              lanGhi: Number(lanGhi),
             },
           },
-        },
-        orderBy: {
-          [safeSortBy]: sort,
-        },
-        take: Number(limit),
-        skip: Number(offset),
-      }),
+          data: { isDelete: true },
+        });
+      }
 
-      this.prisma.phieuThuDienNuoc.count({
-        where,
-      }),
-    ]);
-
-    return {
-      total,
-      data,
-    };
-  }
-
-  getAllLoadingBalance(id?: number) {
-    return this.prisma.phieuThuDienNuoc.findMany({
-      where: {
-        isDelete: false,
-      },
-      include: {
-        dienNuoc: {
-          include: {
-            phong: true,
+      //ROLLBACK TRẠNG THÁI BẢNG DIENNUOC VỀ 0 (CHƯA CHỐT / NHÁP)
+      const updatedDienNuoc = await tx.dienNuoc.update({
+        where: {
+          phongId_thangNam_lanGhi: {
+            phongId: Number(phongId),
+            thangNam: thangNam,
+            lanGhi: Number(lanGhi),
           },
         },
-      },
-      orderBy: {
-        phieuThuDienNuocId: 'asc',
-      },
-      take: 15,
-      ...(id !== undefined && id !== null
-        ? {
-          skip: 1,
-          cursor: {
-            phieuThuDienNuocId: id,
-          },
-        }
-        : {}),
+        data: { TrangThai: 0 }, // Đưa về trạng thái nháp để có thể sửa hoặc chốt lại
+      });
+
+      return {
+        success: true,
+        message: `Đã xóa hóa đơn điện nước lần ${lanGhi} thành công! Dữ liệu đã được rollback về trạng thái chưa chốt.`,
+        data: updatedDienNuoc,
+      };
     });
-  }
-
-  async findByDienNuoc(
-    phongId: number,
-    thangNam: string,
-    lanGhi: number,
-  ) {
-    const item = await this.prisma.phieuThuDienNuoc.findFirst({
-      where: {
-        phongId,
-        thangNam,
-        lanGhi,
-        isDelete: false,
-      },
-      include: {
-        dienNuoc: {
-          include: {
-            phong: true,
-          },
-        },
-      },
-    });
-
-    if (!item) {
-      throw new NotFoundException(
-        'Không tìm thấy phiếu thu điện nước.',
-      );
-    }
-
-    return item;
   }
 }
