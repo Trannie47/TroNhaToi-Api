@@ -415,6 +415,42 @@ export class HoaDonPhongService {
 
         const tongTienCaNhan = finalTienPhong + tongTienXe + tienDichVuKhacPerCustomer;
 
+        //khi click tạo hóa đơn thì nó sẽ check vào tạo hóa đơn xe cho ngthue
+        for (const xe of finalDanhSachXe) {
+          const xeId = Number(xe.id ?? xe.ID);
+          const xePrice = Number(xe.price ?? 0);
+
+          if (xeId) {
+            const existingGuiXe = await tx.hoaDonGuiXe.findFirst({
+              where: {
+                idPT: xeId,
+                thangNam: thangNam,
+                isDelete: false,
+              },
+            });
+
+            if (existingGuiXe) {
+              await tx.hoaDonGuiXe.update({
+                where: { maHoaDon: existingGuiXe.maHoaDon },
+                data: {
+                  soTien: new Prisma.Decimal(xePrice),
+                  isDelete: false,
+                },
+              });
+            } else {
+              await tx.hoaDonGuiXe.create({
+                data: {
+                  thangNam: thangNam,
+                  soTien: new Prisma.Decimal(xePrice),
+                  TrangThai: 0,
+                  idPT: xeId,
+                  isDelete: false,
+                },
+              });
+            }
+          }
+        }
+
         // CẬP NHẬT SNAPSHOT CHI TIẾT ĐẦY ĐỦ THÀNH PHẦN
         const snapshotCaNhan = {
           maHoaDon: maHoaDonCaNhan,
@@ -661,6 +697,32 @@ export class HoaDonPhongService {
         where: { maHoaDon: maHoaDon },
         data: { isDelete: true },
       });
+
+      // PARSE CHI TIẾT JSON ĐỂ ROLLBACK HÓA ĐƠN GỬI XE VỀ isDelete: true
+      try {
+        if (hoaDon.chiTietJson) {
+          const parsedSnap = JSON.parse(hoaDon.chiTietJson as string);
+          const danhSachXe = parsedSnap.danhSachXe;
+
+          if (Array.isArray(danhSachXe) && danhSachXe.length > 0) {
+            for (const xe of danhSachXe) {
+              const xeId = Number(xe.id ?? xe.ID);
+              if (xeId) {
+                await tx.hoaDonGuiXe.updateMany({
+                  where: {
+                    idPT: xeId,
+                    thangNam: hoaDon.thangNam,
+                    isDelete: false,
+                  },
+                  data: { isDelete: true }, //Set hóa đơn xe thành đã xóa (ẩn đi)
+                });
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Lỗi rollback hóa đơn gửi xe khi xóa hóa đơn phòng:', e);
+      }
 
       await this.thongKeSnapshot.invalidateAll(tx);
 

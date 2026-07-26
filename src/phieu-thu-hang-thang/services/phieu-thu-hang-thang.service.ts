@@ -46,6 +46,30 @@ export class PhieuThuHangThangService {
       where: { maHoaDon },
       data: { trangThai: trangThaiMoi },
     });
+    if (trangThaiMoi === 2 && hoaDon.chiTietJson) {
+      try {
+        const parsedSnap = JSON.parse(hoaDon.chiTietJson as string);
+        const danhSachXe = parsedSnap.danhSachXe;
+
+        if (Array.isArray(danhSachXe) && danhSachXe.length > 0) {
+          for (const xe of danhSachXe) {
+            const xeId = Number(xe.id ?? xe.ID);
+            if (xeId) {
+              await tx.hoaDonGuiXe.updateMany({
+                where: {
+                  idPT: xeId,
+                  thangNam: hoaDon.thangNam,
+                  isDelete: false,
+                },
+                data: { TrangThai: 1 }, // Set trạng thái hóa đơn xe thành 1 (Đã thu)
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Lỗi tự động cập nhật hóa đơn gửi xe khi thanh toán đủ:', e);
+      }
+    }
 
     const conNo = tongTienHD - tongDaThu > 0 ? tongTienHD - tongDaThu : 0;
 
