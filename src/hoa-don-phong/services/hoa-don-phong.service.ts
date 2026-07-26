@@ -66,6 +66,25 @@ export class HoaDonPhongService {
         anhNuocMoi: null,
       };
     }
+    //Kiểm tra xem tháng này đã có bản ghi điện nước nào đã chốt (TrangThai: 1) nhưng CHƯA ĐƯỢC THANH TOÁN hay chưa
+    const danhSachDienNuocDaChot = await this.prisma.dienNuoc.findMany({
+      where: { phongId: phongId, thangNam: thangNam, TrangThai: 1 },
+      include: { phieuThuDienNuoc: { where: { isDelete: false } } },
+    });
+
+    let canCreateDienNuoc = true; // Mặc định cho phép tạo
+    for (const dn of danhSachDienNuocDaChot) {
+      const tienDien = (dn.chiSoDienMoi - dn.chiSoDienCu) * giaDien;
+      const tienNuoc = (dn.chiSoNuocMoi - dn.chiSoNuocCu) * giaNuoc;
+      const tongTienDN = tienDien + tienNuoc;
+      const daThuDN = Number(dn.phieuThuDienNuoc?.soTien ?? 0);
+
+      // Nếu có bất kỳ bản ghi điện nước nào đã chốt mà chưa thanh toán đủ -> Khóa không cho tạo mới
+      if (daThuDN < tongTienDN && tongTienDN > 0) {
+        canCreateDienNuoc = false;
+        break;
+      }
+    }
 
     const [phanThang, phanNam] = thangNam.split('/');
     const thangInt = parseInt(phanThang, 10);
@@ -256,6 +275,7 @@ export class HoaDonPhongService {
       giaDien,
       giaNuoc,
       dienNuoc: dienNuocData,
+      canCreateDienNuoc,
       danhSachHopDong: danhSachHopDongCalculated,
       tienDichVuKhacDefault: 0,
     };
@@ -266,6 +286,31 @@ export class HoaDonPhongService {
     danhSachUrlAnh: { anhDienMoi?: string; anhNuocMoi?: string },
   ) {
     const { phongId, thangNam, isChotDienNuoc, danhSachHopDongJson } = dto;
+
+    //CHẶN TẠO ĐIỆN NƯỚC NẾU CÒN HÓA ĐƠN CŨ CHƯA THANH TOÁN
+    if (isChotDienNuoc) {
+      const danhSachDienNuocCu = await this.prisma.dienNuoc.findMany({
+        where: { phongId: Number(phongId), thangNam: thangNam, TrangThai: 1 },
+        include: { phieuThuDienNuoc: { where: { isDelete: false } } },
+      });
+
+      const cauHinhGia = await this.prisma.cauHinhGia.findFirst();
+      const giaDien = cauHinhGia?.giaDien ?? 3500;
+      const giaNuoc = cauHinhGia?.giaNuoc ?? 15000;
+
+      for (const dn of danhSachDienNuocCu) {
+        const tienD = (dn.chiSoDienMoi - dn.chiSoDienCu) * giaDien;
+        const tienN = (dn.chiSoNuocMoi - dn.chiSoNuocCu) * giaNuoc;
+        const tongDN = tienD + tienN;
+        const daThuDN = Number(dn.phieuThuDienNuoc?.soTien ?? 0);
+
+        if (daThuDN < tongDN && tongDN > 0) {
+          throw new BadRequestException(
+            `Hóa đơn điện nước lần ${dn.lanGhi} của tháng ${thangNam} chưa được thanh toán đủ, không thể tạo thêm bản ghi điện nước mới!`,
+          );
+        }
+      }
+    }
 
     if (isChotDienNuoc && dto.chiSoDienMoi !== undefined && dto.chiSoDienCu !== undefined) {
       if (dto.chiSoDienMoi < dto.chiSoDienCu) {
@@ -304,7 +349,7 @@ export class HoaDonPhongService {
           }
         }
       } catch (e) {
-        console.error('❌ Lỗi parse danhSachHopDongJson:', e);
+        console.error('Lỗi parse danhSachHopDongJson:', e);
       }
     }
 
