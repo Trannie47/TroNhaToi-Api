@@ -15,6 +15,42 @@ export class HoaDonPhongService {
     private thongKeSnapshot: ThongKeSnapshotService,
   ) {}
 
+  // Laays tát cả ds hóa đơn theo kỳ
+async getAllDanhSachQuanLyHoaDon(thangNam?: string) {
+  //Lấy tất cả các phòng đang hoạt động 
+  const danhSachPhong = await this.prisma.phong.findMany({
+    where: { isDelete: false },
+    select: { phongId: true, tenPhong: true },
+  });
+
+  let danhSachTatCaHoaDon: any[] = [];
+
+  //Duyệt qua từng phòng
+  for (const phong of danhSachPhong) {
+    const danhSachHoaDonCuaPhong = await this.getDanhSachByPhong(phong.phongId, thangNam);
+    
+    // Đảm bảo mỗi item hóa đơn đều có thông tin tên phòng chuẩn xác
+    const danhSachHoaDonMap = danhSachHoaDonCuaPhong.map(hoaDon => ({
+      ...hoaDon,
+      tenPhong: phong.tenPhong,
+    }));
+
+    danhSachTatCaHoaDon.push(...danhSachHoaDonMap);
+  }
+
+  //Sắp xếp theo ngày lập mới nhất lên đầu
+  danhSachTatCaHoaDon.sort((a, b) => {
+    const thoiGianA = a.ngayLap ? new Date(a.ngayLap).getTime() : 0;
+    const thoiGianB = b.ngayLap ? new Date(b.ngayLap).getTime() : 0;
+    return thoiGianB - thoiGianA;
+  });
+
+  return {
+    success: true,
+    data: danhSachTatCaHoaDon,
+  };
+}
+
   async getHoaDonInitData(phongId: number, thangNam: string) {
     const thongTinPhong = await this.prisma.phong.findUnique({
       where: { phongId: phongId, isDelete: false },

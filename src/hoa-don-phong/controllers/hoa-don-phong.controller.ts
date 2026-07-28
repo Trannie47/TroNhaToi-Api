@@ -8,6 +8,7 @@ import {
   Post,
   Query,
   UploadedFiles,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import {
@@ -21,9 +22,11 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { HoaDonPhongService } from '../services/hoa-don-phong.service';
 import { CreateHoaDonPhongDto } from '../dto/create-hoa-don-phong.dto';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 @ApiTags('Hóa Đơn Phòng')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('hoa-don-phong')
 export class HoaDonPhongController {
   constructor(
@@ -114,5 +117,10 @@ export class HoaDonPhongController {
   @ApiParam({ name: 'maHoaDon', description: 'Mã hóa đơn (VD: HD-HD01-072026)' })
   async deleteHoaDonPhong(@Param('maHoaDon') maHoaDon: string) {
     return await this.hoaDonPhongService.deleteHoaDonPhong(maHoaDon);
+  }
+
+  @Get('quan-ly-chung')
+  async getTatCaHoaDonQuanLy(@Query('thangNam') thangNam?: string) {
+    return await this.hoaDonPhongService.getAllDanhSachQuanLyHoaDon(thangNam);
   }
 }
