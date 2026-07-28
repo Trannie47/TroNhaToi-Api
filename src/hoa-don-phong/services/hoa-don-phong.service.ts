@@ -93,11 +93,41 @@ export class HoaDonPhongService {
     const ngayDauThang = new Date(namInt, thangInt - 1, 1);
     const ngayCuoiThang = new Date(namInt, thangInt, 0, 23, 59, 59);
     const soNgayTrongThang = ngayCuoiThang.getDate();
+    const activeContracts = await this.prisma.hopDong.findMany({
+      where: {
+        phongId: phongId,
+        isDelete: false,
+        ngayKy: { lte: ngayCuoiThang },
+       OR: [
+          { trangThai: 1 },
+          { trangThai: 0 },
+        ], //quét những ai đang có hợp đồng hiệu lực or sắp hiệu lực mà vẫn đang nằm trong tháng đó
+      },
+      select: { idnt: true },
+    });
+
+    const dsNt = Array.from(new Set(activeContracts.map((c) => c.idnt)));
+
+    // Nếu phòng không có ai đang ở, trả về danh sách hóa đơn phòng trống luôn
+    if (dsNt.length === 0) {
+      return {
+        phongId,
+        tenPhong: thongTinPhong.tenPhong,
+        thangNam,
+        giaDien,
+        giaNuoc,
+        dienNuoc: dienNuocData,
+        canCreateDienNuoc,
+        danhSachHopDong: [],
+        tienDichVuKhacDefault: 0,
+      };
+    }
 
     const danhSachHopDong = await this.prisma.hopDong.findMany({
       where: {
         phongId: phongId,
         isDelete: false,
+        idnt: { in: dsNt }, // Chỉ lấy của người đang ở
         ngayKy: { lte: ngayCuoiThang },
         OR: [
           { trangThai: 1 },
