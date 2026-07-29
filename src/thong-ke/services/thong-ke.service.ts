@@ -269,7 +269,8 @@ export class ThongKeService {
     };
   }
 
-  /**
+
+  /*
    * ==========================================
    * TỔNG ĐÃ THU
    * ==========================================
@@ -277,7 +278,7 @@ export class ThongKeService {
   private async getTongDaThu(dto: ThongKeQueryDto) {
     const { from, to } = this.getDateRange(dto);
 
-    const [thuPhong, thuTapHoa, thuDienNuoc] = await Promise.all([
+    const [thuPhong, thuTapHoa, thuGuiXe /*, thuDienNuoc */] = await Promise.all([
       this.prisma.phieuThuHangThang.aggregate({
         _sum: {
           soTien: true,
@@ -303,30 +304,47 @@ export class ThongKeService {
           },
         },
       }),
-      this.prisma.phieuThuDienNuoc.aggregate({
+
+      // Đã thu gửi xe: tạm tính theo hóa đơn gửi xe trong khoảng thời gian
+      this.prisma.hoaDonGuiXe.aggregate({
         _sum: {
           soTien: true,
         },
         where: {
           isDelete: false,
-          ngayThu: {
-            gte: from,
-            lte: to,
-          },
+          TrangThai: 1,
+          thangNam: this.getThangNam(dto)
+            ? this.getThangNam(dto)
+            : { endsWith: `${dto.nam}` },
         },
       }),
+
+
+      // this.prisma.phieuThuDienNuoc.aggregate({
+      //   _sum: {
+      //     soTien: true,
+      //   },
+      //   where: {
+      //     isDelete: false,
+      //     ngayThu: {
+      //       gte: from,
+      //       lte: to,
+      //     },
+      //   },
+      // }),
     ]);
 
     const daThuPhong = this.toNumber(thuPhong._sum.soTien);
-
     const daThuTapHoa = this.toNumber(thuTapHoa._sum.soTien);
-    const daThuDienNuoc = this.toNumber(thuDienNuoc._sum.soTien);
+    const daThuGuiXe = this.toNumber(thuGuiXe._sum.soTien);
+    // const daThuDienNuoc = this.toNumber(thuDienNuoc._sum.soTien);
 
     return {
       daThuPhong,
       daThuTapHoa,
-      daThuDienNuoc,
-      tongDaThu: daThuPhong + daThuTapHoa + daThuDienNuoc,
+      daThuGuiXe,
+      // daThuDienNuoc,
+      tongDaThu: daThuPhong + daThuTapHoa + daThuGuiXe,
     };
   }
 
@@ -393,7 +411,7 @@ export class ThongKeService {
       0,
     );
 
-    const tongTienSuaChua = this.toNumber(hoaDonSuaChua._sum.giaTien) ;
+    const tongTienSuaChua = this.toNumber(hoaDonSuaChua._sum.giaTien);
     console.log(tongTienSuaChua);
     return {
       tongChiPhi: tongTienSuaChua + tongTienMuaThietBi,
