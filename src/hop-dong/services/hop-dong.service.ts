@@ -249,9 +249,17 @@ if (existingHopDong.trangThai === 2) {
 
     // Nếu hợp đồng cũ đang ở trạng thái hiệu lực hoặc hết hiệu lực, thì set hợp đồng cũ thành hết hiệu lực và tạo hợp đồng mới
     return await this.prisma.$transaction(async (prisma) => {
+      // Tính toán ngày bắt đầu của hợp đồng mới từ DTO gửi lên
+     const ngayKyStr = dto.ngayKy ? new Date(dto.ngayKy).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const ngayKyMoi = new Date(`${ngayKyStr}T00:00:00.000Z`);
+
+    // Ngày kết thúc của hợp đồng cũ = Ngày bắt đầu hợp đồng mới trừ đi 1 ngày
+   const ngayHetHanCu = new Date(ngayKyMoi);
+    ngayHetHanCu.setDate(ngayHetHanCu.getDate() - 1);
+
      await prisma.hopDong.update({
         where: { hopDongId: id },
-        data: { trangThai: 2 }, // Cập nhật hợp đồng cũ thành hết hiệu lực
+        data: { trangThai: 2,ngayHetHan: ngayHetHanCu, }, // Cập nhật hợp đồng cũ thành hết hiệu lực
       });
       const result = await this._createHopDong(prisma, dto as CreateHopDongDto, listUrlImage); // Tạo hợp đồng mới với thông tin mới
       await this.thongKeSnapshotService.invalidateAll(prisma);
@@ -561,9 +569,11 @@ const ngayHetHanMoi = new Date(stringNgay);
       );
     }
 
-    const homNay = new Date();
-    homNay.setHours(0, 0, 0, 0);
-
+   const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+    const homNay = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
     return await this.prisma.$transaction(async (prisma) => {
       //Cập nhật hợp đồng: Chuyển trạng thái thành 2 (Đã kết thúc) và chốt ngày hết hạn là ngày hiện tại
       const updatedHopDong = await prisma.hopDong.update({
