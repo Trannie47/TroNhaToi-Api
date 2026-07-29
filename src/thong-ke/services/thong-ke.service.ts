@@ -524,54 +524,106 @@ export class ThongKeService {
    * THỐNG KÊ THIẾT BỊ
    * ==========================================
    */
+  // private async getThongKeThietBi() {
+  //   const [
+  //     tongThietBi,
+  //     thietBiHoatDong,
+  //     thietBiDangSua,
+  //     thietBiHong,
+  //     tongLapRap,
+  //     tongSuaChua,
+  //   ] = await Promise.all([
+  //     this.prisma.thietBi.count({
+  //       where: {
+  //         isDelete: false,
+  //       },
+  //     }),
+
+  //     this.prisma.thietBi.count({
+  //       where: {
+  //         isDelete: false,
+  //         trangThai: 0,
+  //       },
+  //     }),
+
+  //     this.prisma.thietBi.count({
+  //       where: {
+  //         isDelete: false,
+  //         trangThai: 1,
+  //       },
+  //     }),
+
+  //     this.prisma.thietBi.count({
+  //       where: {
+  //         isDelete: false,
+  //         trangThai: 2,
+  //       },
+  //     }),
+
+  //     this.prisma.lapRap.count({
+  //       where: {
+  //         isDelete: false,
+  //       },
+  //     }),
+
+  //     this.prisma.suaChua.count({
+  //       where: {
+  //         isDelete: false,
+  //       },
+  //     }),
+  //   ]);
+
+  //   return {
+  //     tongThietBi,
+  //     thietBiHoatDong,
+  //     thietBiDangSua,
+  //     thietBiHong,
+  //     tongLapRap,
+  //     tongSuaChua,
+  //   };
+  // }
   private async getThongKeThietBi() {
-    const [
-      tongThietBi,
-      thietBiHoatDong,
-      thietBiDangSua,
-      thietBiHong,
-      tongLapRap,
-      tongSuaChua,
-    ] = await Promise.all([
-      this.prisma.thietBi.count({
-        where: {
-          isDelete: false,
-        },
+    const [tongMuaAgg, dsSuaChua, tongLapRap, tongSuaChua] = await Promise.all([
+      // Tổng thiết bị = tổng soLuong trong lịch sử mua thiết bị
+      this.prisma.lichSuMuaThietBi.aggregate({
+        where: { isDelete: false },
+        _sum: { soLuong: true },
       }),
 
-      this.prisma.thietBi.count({
-        where: {
-          isDelete: false,
-          trangThai: 0,
-        },
-      }),
-
-      this.prisma.thietBi.count({
-        where: {
-          isDelete: false,
-          trangThai: 1,
-        },
-      }),
-
-      this.prisma.thietBi.count({
-        where: {
-          isDelete: false,
-          trangThai: 2,
-        },
+      // Lấy tất cả bản ghi sửa chữa (còn hiệu lực) kèm hóa đơn để tính đang sửa / hỏng
+      this.prisma.suaChua.findMany({
+        where: { isDelete: false },
+        include: { hoadonsuachua: true },
       }),
 
       this.prisma.lapRap.count({
-        where: {
-          isDelete: false,
-        },
+        where: { isDelete: false },
       }),
 
       this.prisma.suaChua.count({
-        where: {
-          isDelete: false,
-        },
+        where: { isDelete: false },
       }),
     ]);
+
+    const tongThietBi = tongMuaAgg._sum.soLuong ?? 0;
+
+    // Đếm đang sửa / hỏng theo cùng logic đã dùng ở các hàm trước
+    let thietBiDangSua = 0;
+    let thietBiHong = 0;
+
+    for (const sc of dsSuaChua) {
+      const hoaDon =
+        sc.hoadonsuachua && !sc.hoadonsuachua.isDelete ? sc.hoadonsuachua : null;
+
+      if (hoaDon?.trangThai === 3) {
+        thietBiHong += 1;
+      } else if (!hoaDon || hoaDon.trangThai === 0) {
+        thietBiDangSua += 1;
+      }
+      // trangThai === 1 hoặc 2: không tính vào đang sửa/hỏng
+    }
+
+    const thietBiHoatDong = tongThietBi - thietBiDangSua - thietBiHong;
 
     return {
       tongThietBi,
