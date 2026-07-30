@@ -488,7 +488,10 @@ async getAllDanhSachQuanLyHoaDon(thangNam?: string) {
 
       let sttHoaDon = countExistingInMonth + 1;
 
-      const pendingHopDongList = dsHopDong.filter((hd) => !hd.isAlreadyBilled);
+     let pendingHopDongList: any[] = [];
+      if (dto.danhSachHopDongJson) {
+          pendingHopDongList = dsHopDong.filter((hd) => !hd.isAlreadyBilled);
+      }
 
       for (const hd of pendingHopDongList) {
         const keyByHopDongId = String(hd.hopDongId).trim();
