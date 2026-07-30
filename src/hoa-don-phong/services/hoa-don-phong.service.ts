@@ -13,43 +13,43 @@ export class HoaDonPhongService {
   constructor(
     private prisma: PrismaService,
     private thongKeSnapshot: ThongKeSnapshotService,
-  ) {}
+  ) { }
 
   // Laays tát cả ds hóa đơn theo kỳ
-async getAllDanhSachQuanLyHoaDon(thangNam?: string) {
-  //Lấy tất cả các phòng đang hoạt động 
-  const danhSachPhong = await this.prisma.phong.findMany({
-    where: { isDelete: false },
-    select: { phongId: true, tenPhong: true },
-  });
+  async getAllDanhSachQuanLyHoaDon(thangNam?: string) {
+    //Lấy tất cả các phòng đang hoạt động 
+    const danhSachPhong = await this.prisma.phong.findMany({
+      where: { isDelete: false },
+      select: { phongId: true, tenPhong: true },
+    });
 
-  let danhSachTatCaHoaDon: any[] = [];
+    let danhSachTatCaHoaDon: any[] = [];
 
-  //Duyệt qua từng phòng
-  for (const phong of danhSachPhong) {
-    const danhSachHoaDonCuaPhong = await this.getDanhSachByPhong(phong.phongId, thangNam);
-    
-    // Đảm bảo mỗi item hóa đơn đều có thông tin tên phòng chuẩn xác
-    const danhSachHoaDonMap = danhSachHoaDonCuaPhong.map(hoaDon => ({
-      ...hoaDon,
-      tenPhong: phong.tenPhong,
-    }));
+    //Duyệt qua từng phòng
+    for (const phong of danhSachPhong) {
+      const danhSachHoaDonCuaPhong = await this.getDanhSachByPhong(phong.phongId, thangNam);
 
-    danhSachTatCaHoaDon.push(...danhSachHoaDonMap);
+      // Đảm bảo mỗi item hóa đơn đều có thông tin tên phòng chuẩn xác
+      const danhSachHoaDonMap = danhSachHoaDonCuaPhong.map(hoaDon => ({
+        ...hoaDon,
+        tenPhong: phong.tenPhong,
+      }));
+
+      danhSachTatCaHoaDon.push(...danhSachHoaDonMap);
+    }
+
+    //Sắp xếp theo ngày lập mới nhất lên đầu
+    danhSachTatCaHoaDon.sort((a, b) => {
+      const thoiGianA = a.ngayLap ? new Date(a.ngayLap).getTime() : 0;
+      const thoiGianB = b.ngayLap ? new Date(b.ngayLap).getTime() : 0;
+      return thoiGianB - thoiGianA;
+    });
+
+    return {
+      success: true,
+      data: danhSachTatCaHoaDon,
+    };
   }
-
-  //Sắp xếp theo ngày lập mới nhất lên đầu
-  danhSachTatCaHoaDon.sort((a, b) => {
-    const thoiGianA = a.ngayLap ? new Date(a.ngayLap).getTime() : 0;
-    const thoiGianB = b.ngayLap ? new Date(b.ngayLap).getTime() : 0;
-    return thoiGianB - thoiGianA;
-  });
-
-  return {
-    success: true,
-    data: danhSachTatCaHoaDon,
-  };
-}
 
   async getHoaDonInitData(phongId: number, thangNam: string) {
     const thongTinPhong = await this.prisma.phong.findUnique({
@@ -134,7 +134,7 @@ async getAllDanhSachQuanLyHoaDon(thangNam?: string) {
         phongId: phongId,
         isDelete: false,
         ngayKy: { lte: ngayCuoiThang },
-       OR: [
+        OR: [
           { trangThai: 1 },
           { trangThai: 0 },
         ], //quét những ai đang có hợp đồng hiệu lực or sắp hiệu lực mà vẫn đang nằm trong tháng đó
@@ -488,9 +488,9 @@ async getAllDanhSachQuanLyHoaDon(thangNam?: string) {
 
       let sttHoaDon = countExistingInMonth + 1;
 
-     let pendingHopDongList: any[] = [];
+      let pendingHopDongList: any[] = [];
       if (dto.danhSachHopDongJson) {
-          pendingHopDongList = dsHopDong.filter((hd) => !hd.isAlreadyBilled);
+        pendingHopDongList = dsHopDong.filter((hd) => !hd.isAlreadyBilled);
       }
 
       for (const hd of pendingHopDongList) {
@@ -746,10 +746,10 @@ async getAllDanhSachQuanLyHoaDon(thangNam?: string) {
           trangThai: isPaid ? 2 : 0,
           chiTietJson: JSON.stringify(snapshotDienNuoc),
           phieuThuHangThang: dn.phieuThuDienNuoc ? {
-          soTien: Number(dn.phieuThuDienNuoc.soTien ?? 0),
-          ngayThu: dn.phieuThuDienNuoc.ngayThu,
-          ghiChu: dn.phieuThuDienNuoc.ghiChu, // Ghi chú thu tiền điện nước
-  } : null,
+            soTien: Number(dn.phieuThuDienNuoc.soTien ?? 0),
+            ngayThu: dn.phieuThuDienNuoc.ngayThu,
+            ghiChu: dn.phieuThuDienNuoc.ghiChu, // Ghi chú thu tiền điện nước
+          } : null,
         });
       }
     }
@@ -767,7 +767,7 @@ async getAllDanhSachQuanLyHoaDon(thangNam?: string) {
             phong: true,
           },
         },
-       phieuThuHangThang: true,
+        phieuThuHangThang: true,
       },
     });
 
