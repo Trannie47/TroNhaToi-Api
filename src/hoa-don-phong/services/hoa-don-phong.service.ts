@@ -61,7 +61,9 @@ async getAllDanhSachQuanLyHoaDon(thangNam?: string) {
       throw new NotFoundException(`Không tìm thấy phòng với ID ${phongId}`);
     }
 
-    const cauHinhGia = await this.prisma.cauHinhGia.findFirst();
+    const cauHinhGia = await this.prisma.cauHinhGia.findFirst({
+  orderBy: { id: 'desc' },
+});
     const giaDien = cauHinhGia?.giaDien ?? 3500;
     const giaNuoc = cauHinhGia?.giaNuoc ?? 15000;
 
@@ -360,7 +362,9 @@ async getAllDanhSachQuanLyHoaDon(thangNam?: string) {
         include: { phieuThuDienNuoc: { where: { isDelete: false } } },
       });
 
-      const cauHinhGia = await this.prisma.cauHinhGia.findFirst();
+      const cauHinhGia = await this.prisma.cauHinhGia.findFirst({
+  orderBy: { id: 'desc' },
+});
       const giaDien = cauHinhGia?.giaDien ?? 3500;
       const giaNuoc = cauHinhGia?.giaNuoc ?? 15000;
 
@@ -619,7 +623,7 @@ async getAllDanhSachQuanLyHoaDon(thangNam?: string) {
   }
 
   async getDanhSachByPhong(phongId: number, thangNam?: string) {
-    const cauHinhGia = await this.prisma.cauHinhGia.findFirst();
+    const cauHinhGia = await this.prisma.cauHinhGia.findFirst({orderBy: { id: 'desc' },});
     const giaDien = cauHinhGia?.giaDien ?? 3500;
     const giaNuoc = cauHinhGia?.giaNuoc ?? 15000;
 
