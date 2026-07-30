@@ -6,6 +6,7 @@ import { SearchHopDongDto } from '../dto/search-hop-dong.dto';
 import { generateId } from '../../common/utils/generate-id.util';
 import { GiaHanHopDongDto } from '../dto/renew-hop-dong.dto';
 import { ThongKeSnapshotService } from '../../thong-ke/services/thong-ke-snapshot.service';
+import { Cron } from '@nestjs/schedule';
 
 @Injectable()
 export class HopDongService {
@@ -339,9 +340,9 @@ if (existingHopDong.trangThai === 2) {
 
     //Ngày hết hạn mới phải LỚN HƠN ngày hết hạn hiện tại
    const ngayOnly = dto.ngayHetHanMoi.split('T')[0];
-const stringNgay = `${ngayOnly}T00:00:00.000Z`;
+  const stringNgay = `${ngayOnly}T00:00:00.000Z`;
 
-const ngayHetHanMoi = new Date(stringNgay);
+  const ngayHetHanMoi = new Date(stringNgay);
 
 
     if (ngayHetHanMoi <= ngayHetHanCu) {
@@ -528,7 +529,7 @@ const ngayHetHanMoi = new Date(stringNgay);
     const hoaDonPhongChuaTra = await this.prisma.hoaDonPhong.findFirst({
       where: {
         hopDongId: id, // Kiểm tra theo hợp đồng này
-        trangThai: { not: 2 }, // 2 là Đã thanh toán (dựa theo định nghĩa trạng thái trong schema của bạn: 0: Chưa TT, 2: Đã TT)
+        trangThai: { not: 2 }, // 2 là Đã thanh toán 
         isDelete: false,
       },
     });
@@ -625,6 +626,37 @@ const ngayHetHanMoi = new Date(stringNgay);
         data: updatedHopDong,
       };
     });
+  }
+
+  @Cron('0 0 * * *')
+  async handleKichHoatContract(){
+    const homNay = new Date();
+    homNay.setHours(0, 0, 0, 0);
+    try{
+      const dsHopDongChuahieuluc = await this.prisma.hopDong.findMany({
+        where: {
+          trangThai: 0,
+          isDelete: false,
+          ngayKy: {
+            lte: homNay,
+          },
+        },
+      });
+
+      if (dsHopDongChuahieuluc.length === 0) return;
+      for (const hd of dsHopDongChuahieuluc) {
+        await this.prisma.$transaction(async (prisma) => {
+          // Chuyển trạng thái hợp đồng thành 1
+          await prisma.hopDong.update({
+            where: { hopDongId: hd.hopDongId },
+            data: { trangThai: 1 },
+          });
+        });
+      }
+      console.log('Kích hoạt hợp đồng tự động thành công!');
+    }catch(e){
+        console.error('Lỗi khi chạy cron job kích hoạt hợp đồng:', e);
+    }
   }
 
  //--------------------------------------------------------------------------------
