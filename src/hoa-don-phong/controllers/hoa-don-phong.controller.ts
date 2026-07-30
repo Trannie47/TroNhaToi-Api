@@ -26,7 +26,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 @ApiTags('Hóa Đơn Phòng')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+//@UseGuards(JwtAuthGuard)
 @Controller('hoa-don-phong')
 export class HoaDonPhongController {
   constructor(

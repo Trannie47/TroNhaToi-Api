@@ -642,10 +642,8 @@ async getAllDanhSachQuanLyHoaDon(thangNam?: string) {
 
     const resultList: any[] = invoices.map((hd) => {
       const tongTien = Number(hd.soTien ?? 0);
-      const tongDaThu = hd.phieuThuHangThang.reduce(
-        (sum, p) => sum + Number(p.soTien ?? 0),
-        0,
-      );
+      const phieuThu = hd.phieuThuHangThang;
+      const tongDaThu = (phieuThu && !phieuThu.isDelete) ? Number(phieuThu.soTien ?? 0) : 0;
       const conNo = tongTien - tongDaThu > 0 ? tongTien - tongDaThu : 0;
 
       return {
@@ -661,6 +659,11 @@ async getAllDanhSachQuanLyHoaDon(thangNam?: string) {
         conNo,
         trangThai: hd.trangThai,
         chiTietJson: hd.chiTietJson,
+        phieuThuHangThang: (phieuThu && !phieuThu.isDelete) ? {
+          soTien: Number(phieuThu.soTien ?? 0),
+          ngayThu: phieuThu.ngayThu,
+          ghiChu: phieuThu.ghiChu,
+        } : null,
       };
     });
 
@@ -739,6 +742,11 @@ async getAllDanhSachQuanLyHoaDon(thangNam?: string) {
           conNo: tongTienDN - daThuDN > 0 ? tongTienDN - daThuDN : 0,
           trangThai: isPaid ? 2 : 0,
           chiTietJson: JSON.stringify(snapshotDienNuoc),
+          phieuThuHangThang: dn.phieuThuDienNuoc ? {
+          soTien: Number(dn.phieuThuDienNuoc.soTien ?? 0),
+          ngayThu: dn.phieuThuDienNuoc.ngayThu,
+          ghiChu: dn.phieuThuDienNuoc.ghiChu, // Ghi chú thu tiền điện nước
+  } : null,
         });
       }
     }
@@ -756,10 +764,7 @@ async getAllDanhSachQuanLyHoaDon(thangNam?: string) {
             phong: true,
           },
         },
-        phieuThuHangThang: {
-          where: { isDelete: false },
-          orderBy: { ngayThu: 'desc' },
-        },
+       phieuThuHangThang: true,
       },
     });
 
@@ -768,10 +773,9 @@ async getAllDanhSachQuanLyHoaDon(thangNam?: string) {
     }
 
     const tongTien = Number(hoaDon.soTien ?? 0);
-    const tongDaThu = hoaDon.phieuThuHangThang.reduce(
-      (sum, p) => sum + Number(p.soTien ?? 0),
-      0,
-    );
+
+    const phieuThu = hoaDon.phieuThuHangThang;
+    const tongDaThu = (phieuThu && !phieuThu.isDelete) ? Number(phieuThu.soTien ?? 0) : 0;
     const conNo = tongTien - tongDaThu > 0 ? tongTien - tongDaThu : 0;
 
     return {

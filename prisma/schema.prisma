@@ -138,12 +138,12 @@ model HoaDonPhong {
   chiTietJson       String?             @db.Text
 
 
-  trangThai         Int?      @default(0) // 0: Chưa thanh toán, 1: thanh toán một phần  2: Đã thanh toán
+  trangThai         Int?      @default(0) // 0: Chưa thanh toán 2: Đã thanh toán
   ghiChu            String?   @db.Text
   isDelete          Boolean             @default(false)
 
   hopDong           HopDong?             @relation(fields: [hopDongId], references: [hopDongId], onDelete: Restrict, onUpdate: Restrict, map: "HoaDonHangThang_HopDong")   
-  phieuThuHangThang PhieuThuHangThang[]
+ phieuThuHangThang PhieuThuHangThang?
 
   @@index([hopDongId], map: "HopDongID")  
   @@map("hoadonphong")
@@ -154,9 +154,9 @@ model PhieuThuHangThang {
   ngayThu     DateTime?    @db.Date
   soTien      Decimal?     @db.Decimal(10, 2)
   ghiChu      String?      @db.Text
-  maHoaDon    String?      @db.Char(23)
+  maHoaDon     String?      @unique @db.Char(23)
   isDelete    Boolean      @default(false)
-  hoaDonPhong HoaDonPhong? @relation(fields: [maHoaDon], references: [maHoaDon], onDelete: Restrict, onUpdate: Restrict, map: "phieuthuhangthang_ibfk_1")
+  hoaDonPhong  HoaDonPhong? @relation(fields: [maHoaDon], references: [maHoaDon], onDelete: Restrict, onUpdate: Restrict, map: "phieuthuhangthang_ibfk_1")
 
   @@index([maHoaDon], map: "phieuthuhangthang_ibfk_1")
   @@map("phieuthuhangthang")

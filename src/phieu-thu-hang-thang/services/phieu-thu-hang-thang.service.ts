@@ -15,21 +15,27 @@ export class PhieuThuHangThangService {
   async capNhatTrangThaiHoaDon(tx: any, maHoaDon: string) {
     const hoaDon = await tx.hoaDonPhong.findUnique({
       where: { maHoaDon },
+      include:{
+        phieuThuHangThang: true
+      }
     });
 
     if (!hoaDon) return { trangThai: 0, soTien: 0, tongDaThu: 0, conNo: 0 };
 
-    // Lấy danh sách phiếu thu chưa xóa
-    const dsPhieuThu = await tx.phieuThuHangThang.findMany({
-      where: { maHoaDon, isDelete: false },
-    });
-
-    const tongDaThu = dsPhieuThu.reduce(
-      (sum: number, pt: any) => sum + Number(pt.soTien ?? 0),
-      0,
-    );
-
+    const phieuThu = hoaDon.phieuThuHangThang;
+    const tongDaThu = (phieuThu && !phieuThu.isDelete) ? Number(phieuThu.soTien ?? 0) : 0;
     const tongTienHD = Number(hoaDon.soTien ?? 0);
+    // Lấy danh sách phiếu thu chưa xóa
+    // const dsPhieuThu = await tx.phieuThuHangThang.findMany({
+    //   where: { maHoaDon, isDelete: false },
+    // });
+
+    // const tongDaThu = dsPhieuThu.reduce(
+    //   (sum: number, pt: any) => sum + Number(pt.soTien ?? 0),
+    //   0,
+    // );
+
+   // const tongTienHD = Number(hoaDon.soTien ?? 0);
 
     // Xử lý linh hoạt trạng thái
     let trangThaiMoi = 0;
@@ -87,6 +93,7 @@ export class PhieuThuHangThangService {
 
     const hoaDon = await this.prisma.hoaDonPhong.findUnique({
       where: { maHoaDon },
+      include: { phieuThuHangThang: true }// Kiểm tra xem đã có phiếu thu nào chưa
     });
 
     if (!hoaDon || hoaDon.isDelete) {

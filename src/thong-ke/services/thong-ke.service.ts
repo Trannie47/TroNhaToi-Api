@@ -761,10 +761,13 @@ export class ThongKeService {
       if (!room) continue;
 
       const revenue = this.toNumber(invoice.soTien);
-      const collected = invoice.phieuThuHangThang.reduce(
-        (sum, receipt) => sum + this.toNumber(receipt.soTien),
-        0,
-      );
+      // const collected = invoice.phieuThuHangThang.reduce(
+      //   (sum, receipt) => sum + this.toNumber(receipt.soTien),
+      //   0,
+      // );
+      const phieuThu = invoice.phieuThuHangThang;
+      const collected = phieuThu ? Number(phieuThu.soTien ?? 0) : 0;
+
       const current = rooms.get(room.phongId) ?? {
         phongId: room.phongId,
         tenPhong: room.tenPhong,
@@ -876,14 +879,24 @@ export class ThongKeService {
     };
 
     // Gom nợ hóa đơn phòng cá nhân
+    // for (const invoice of roomInvoices) {
+    //   addDebt(
+    //     invoice.hopDong?.nguoithue,
+    //     this.toNumber(invoice.soTien),
+    //     (invoice.phieuThuHangThang || []).reduce(
+    //       (sum, phieu) => sum + this.toNumber(phieu.soTien),
+    //       0,
+    //     ),
+    //   );
+    // }
     for (const invoice of roomInvoices) {
+      const phieuThu = invoice.phieuThuHangThang;
+      const collected = phieuThu ? this.toNumber(phieuThu.soTien) : 0;
+
       addDebt(
         invoice.hopDong?.nguoithue,
         this.toNumber(invoice.soTien),
-        (invoice.phieuThuHangThang || []).reduce(
-          (sum, phieu) => sum + this.toNumber(phieu.soTien),
-          0,
-        ),
+        collected,
       );
     }
 
