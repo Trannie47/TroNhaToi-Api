@@ -61,11 +61,20 @@ export class HoaDonPhongService {
       throw new NotFoundException(`Không tìm thấy phòng với ID ${phongId}`);
     }
 
+    const banGhiCuoiCungCuaThang = await this.prisma.dienNuoc.findFirst({
+      where: { phongId: phongId, thangNam: thangNam },
+      orderBy: { lanGhi: 'desc' },
+    });
+
     const cauHinhGia = await this.prisma.cauHinhGia.findFirst({
-  orderBy: { id: 'desc' },
-});
-    const giaDien = cauHinhGia?.giaDien ?? 3500;
-    const giaNuoc = cauHinhGia?.giaNuoc ?? 15000;
+      orderBy: { id: 'desc' },
+    });
+    
+    const giaDienHeThong = cauHinhGia?.giaDien ?? 3500;
+    const giaNuocHeThong = cauHinhGia?.giaNuoc ?? 15000;
+
+    const giaDien = banGhiCuoiCungCuaThang?.giaDienApDung ?? giaDienHeThong;
+    const giaNuoc = banGhiCuoiCungCuaThang?.giaNuocApDung ?? giaNuocHeThong;
 
     const banGhiChuaChot = await this.prisma.dienNuoc.findFirst({
       where: { phongId: phongId, thangNam: thangNam, TrangThai: 0 },
@@ -363,8 +372,8 @@ export class HoaDonPhongService {
       });
 
       const cauHinhGia = await this.prisma.cauHinhGia.findFirst({
-  orderBy: { id: 'desc' },
-});
+        orderBy: { id: 'desc' },
+      });
       const giaDien = cauHinhGia?.giaDien ?? 3500;
       const giaNuoc = cauHinhGia?.giaNuoc ?? 15000;
 
@@ -440,8 +449,15 @@ export class HoaDonPhongService {
           where: { phongId: phongId, thangNam: thangNam, TrangThai: 0 },
           orderBy: { lanGhi: 'desc' },
         });
+        const cauHinhGiaHienTai = await tx.cauHinhGia.findFirst({
+          orderBy: { id: 'desc' },
+        });
+        const giaDienSystem = cauHinhGiaHienTai?.giaDien ?? 3500;
+        const giaNuocSystem = cauHinhGiaHienTai?.giaNuoc ?? 15000;
 
         if (banGhiChuaChot) {
+          const giaDienApDung = banGhiChuaChot.giaDienApDung ?? giaDienSystem;
+          const giaNuocApDung = banGhiChuaChot.giaNuocApDung ?? giaNuocSystem;
           await tx.dienNuoc.updateMany({
             where: {
               phongId: phongId,
@@ -453,12 +469,16 @@ export class HoaDonPhongService {
               chiSoDienMoi: moiDien,
               chiSoNuocCu: cuNuoc,
               chiSoNuocMoi: moiNuoc,
+              giaDienApDung: giaDienApDung, //Lưu giá điẹn nước ngay lúc đó
+              giaNuocApDung: giaNuocApDung,
               anhDienMoi: danhSachUrlAnh.anhDienMoi ?? banGhiChuaChot.anhDienMoi,
               anhNuocMoi: danhSachUrlAnh.anhNuocMoi ?? banGhiChuaChot.anhNuocMoi,
               TrangThai: 1,
             },
           });
         } else {
+          const giaDienApDung = giaDienSystem;
+          const giaNuocApDung = giaNuocSystem;
           const banGhiCuoi = await tx.dienNuoc.findFirst({
             where: { phongId: phongId, thangNam: thangNam },
             orderBy: { lanGhi: 'desc' },
@@ -475,6 +495,8 @@ export class HoaDonPhongService {
               chiSoDienMoi: moiDien,
               chiSoNuocCu: cuNuoc,
               chiSoNuocMoi: moiNuoc,
+              giaDienApDung: giaDienApDung, 
+              giaNuocApDung: giaNuocApDung,
               anhDienMoi: danhSachUrlAnh.anhDienMoi ?? null,
               anhNuocMoi: danhSachUrlAnh.anhNuocMoi ?? null,
               TrangThai: 1,
@@ -694,12 +716,17 @@ export class HoaDonPhongService {
         const cuDien = dn.chiSoDienCu;
         const moiDien = dn.chiSoDienMoi;
         const suDungDien = moiDien - cuDien > 0 ? moiDien - cuDien : 0;
-        const tienDien = suDungDien * giaDien;
+        
 
         const cuNuoc = dn.chiSoNuocCu;
         const moiNuoc = dn.chiSoNuocMoi;
         const suDungNuoc = moiNuoc - cuNuoc > 0 ? moiNuoc - cuNuoc : 0;
-        const tienNuoc = suDungNuoc * giaNuoc;
+
+        const giaDienDung = dn.giaDienApDung ?? giaDien;
+        const giaNuocDung = dn.giaNuocApDung ?? giaNuoc;
+
+        const tienNuoc = suDungNuoc * giaNuocDung;
+        const tienDien = suDungDien * giaDienDung;
 
         const tongTienDN = tienDien + tienNuoc;
         const daThuDN = Number(dn.phieuThuDienNuoc?.soTien ?? 0);
@@ -723,14 +750,14 @@ export class HoaDonPhongService {
               cu: cuDien,
               moi: moiDien,
               suDung: suDungDien,
-              donGia: giaDien,
+              donGia: giaDienDung,
               thanhTien: tienDien,
             },
             nuoc: {
               cu: cuNuoc,
               moi: moiNuoc,
               suDung: suDungNuoc,
-              donGia: giaNuoc,
+              donGia: giaNuocDung,
               thanhTien: tienNuoc,
             },
           },

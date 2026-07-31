@@ -92,6 +92,9 @@ model DienNuoc {
   chiSoDienMoi Int      @default(0)
   chiSoNuocCu  Int      @default(0)
   chiSoNuocMoi Int      @default(0)
+
+  giaDienApDung Float?   @map("gia_dien_ap_dung")
+  giaNuocApDung Float?   @map("gia_nuoc_ap_dung")
   
   anhDienCu    String?  @db.VarChar(255)
   anhDienMoi   String?  @db.VarChar(255)
