@@ -30,7 +30,6 @@ export class HoaDonTapHoaService {
     return [...list].sort((a, b) => (b.maPhieuThu ?? 0) - (a.maPhieuThu ?? 0))[0];
   }
 
-  /** Chuyển raw Prisma record sang shape mà app Flutter mong đợi */
   private transform(raw: any) {
     const { nguoiThue, chiTietTapHoa = [], phieuThuHdTh = [], ...rest } = raw;
 
@@ -38,7 +37,6 @@ export class HoaDonTapHoaService {
       .filter((ct: any) => ct.hangHoa != null)
       .map((ct: any) => ct.hangHoa);
 
-    // soLuong: { [maHangHoa]: soLuong } — app dùng để hiển thị số lượng từng mặt hàng
     const soLuong: Record<number, number> = {};
     for (const ct of chiTietTapHoa) {
       if (ct.maHangHoa != null && ct.soLuong != null) {
@@ -46,7 +44,6 @@ export class HoaDonTapHoaService {
       }
     }
 
-    // 1 hóa đơn tạp hóa có thể có nhiều phiếu thu (thu nhiều lần)
     const daThu = phieuThuHdTh.reduce((sum: number, pt: any) => sum + Number(pt.soTien ?? 0), 0);
     const tongTien = Number(rest.tongTien ?? 0);
 
@@ -136,13 +133,6 @@ export class HoaDonTapHoaService {
     });
   }
 
-  // FE gửi lại toàn bộ `chiTietTapHoa` mỗi khi sửa hóa đơn (thêm/bớt/đổi số lượng
-  // hàng hóa) — cần thay thế toàn bộ chi tiết cũ bằng danh sách mới, nếu không
-  // tongTien sẽ bị lệch so với chi tiết hàng hóa thực tế lưu trong DB.
-  //
-  // FE cũng gửi `phieuThuHdTh` (1 object) mỗi khi đánh dấu hóa đơn đã thu tiền.
-  // Vì 1 hóa đơn có thể có nhiều phiếu thu, mỗi lần sửa kèm phieuThuHdTh sẽ
-  // ghi thêm 1 phiếu thu mới (không upsert/ghi đè phiếu thu cũ).
   async update(id: string, dto: UpdateHoaDonTapHoaDto) {
     await this.findOne(id);
 

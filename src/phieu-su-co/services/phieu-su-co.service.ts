@@ -12,28 +12,6 @@ export class PhieuSuCoService {
     private thongKeSnapshot: ThongKeSnapshotService,
   ) { }
 
-  // Tạo phiếu sự cố mới
-  async create(dto: CreatePhieuSuCoDto) {
-    return await this.prisma.$transaction(async (tx) => {
-      const phieuMoi = await tx.phieuSuCo.create({
-        data: {
-          ...dto,
-          ngayBatDau: dto.ngayBatDau ? new Date(dto.ngayBatDau) : undefined,
-          ngayHoanThanh: dto.ngayHoanThanh ? new Date(dto.ngayHoanThanh) : undefined,
-        },
-      });
-
-      // Invalidate snapshot thống kê vì phát sinh sự cố mới (ảnh hưởng chi phí)
-      await this.thongKeSnapshot.invalidateAll(tx);
-
-      return {
-        success: true,
-        message: 'Tạo phiếu sự cố thành công!',
-        data: phieuMoi,
-      };
-    });
-  }
-
   async findAll() {
     const list = await this.prisma.phieuSuCo.findMany({
       where: { isDelete: false },
@@ -55,35 +33,94 @@ export class PhieuSuCoService {
     return { success: true, data: item };
   }
 
-  // Cập nhật phiếu sự cố
+  // Tạo phiếu sự cố mới (kèm chi tiết luân chuyển nếu có)
+  async create(dto: CreatePhieuSuCoDto) {
+    const { chiTietLuanChuyen, ...phieuData } = dto;
+
+    return await this.prisma.$transaction(async (tx) => {
+      const phieuMoi = await tx.phieuSuCo.create({
+        data: {
+          ...phieuData,
+          ngayBatDau: phieuData.ngayBatDau ? new Date(phieuData.ngayBatDau) : undefined,
+          ngayHoanThanh: phieuData.ngayHoanThanh ? new Date(phieuData.ngayHoanThanh) : undefined,
+        },
+      });
+
+      let danhSachLuanChuyen: any[] = [];
+      if (chiTietLuanChuyen && chiTietLuanChuyen.length > 0) {
+        danhSachLuanChuyen = await Promise.all(
+          chiTietLuanChuyen.map((ctlc) =>
+            tx.chiTietLuanChuyen.create({
+              data: {
+                suCoId: phieuMoi.suCoId,
+                hopDongId: ctlc.hopDongId,
+                phongMoiId: ctlc.phongMoiId,
+                trangThaiLuanChuyen: ctlc.trangThaiLuanChuyen,
+                ghiChu: ctlc.ghiChu,
+                ngayLuanChuyen: ctlc.ngayLuanChuyen ? new Date(ctlc.ngayLuanChuyen) : undefined,
+              },
+            }),
+          ),
+        );
+      }
+
+      // Invalidate snapshot thống kê vì phát sinh sự cố mới (ảnh hưởng chi phí)
+      await this.thongKeSnapshot.invalidateAll(tx);
+
+      return {
+        success: true,
+        message: 'Tạo phiếu sự cố thành công!',
+        data: { ...phieuMoi, chiTietLuanChuyen: danhSachLuanChuyen },
+      };
+    });
+  }
+
   async update(id: number, dto: UpdatePhieuSuCoDto) {
     const existing = await this.prisma.phieuSuCo.findFirst({
       where: { suCoId: id, isDelete: false },
     });
     if (!existing) throw new NotFoundException(`Không tìm thấy phiếu sự cố #${id}`);
 
+    const { chiTietLuanChuyen, ...phieuData } = dto;
+
     return await this.prisma.$transaction(async (tx) => {
       const updated = await tx.phieuSuCo.update({
         where: { suCoId: id },
         data: {
-          ...dto,
-          ngayBatDau: dto.ngayBatDau ? new Date(dto.ngayBatDau) : undefined,
-          ngayHoanThanh: dto.ngayHoanThanh ? new Date(dto.ngayHoanThanh) : undefined,
+          ...phieuData,
+          ngayBatDau: phieuData.ngayBatDau ? new Date(phieuData.ngayBatDau) : undefined,
+          ngayHoanThanh: phieuData.ngayHoanThanh ? new Date(phieuData.ngayHoanThanh) : undefined,
         },
       });
 
-      // Invalidate snapshot vì chi phí/trạng thái có thể đã thay đổi
+      let danhSachLuanChuyenMoi: any[] = [];
+      if (chiTietLuanChuyen && chiTietLuanChuyen.length > 0) {
+        danhSachLuanChuyenMoi = await Promise.all(
+          chiTietLuanChuyen.map((ctlc) =>
+            tx.chiTietLuanChuyen.create({
+              data: {
+                suCoId: id,
+                hopDongId: ctlc.hopDongId,
+                phongMoiId: ctlc.phongMoiId,
+                trangThaiLuanChuyen: ctlc.trangThaiLuanChuyen,
+                ghiChu: ctlc.ghiChu,
+                ngayLuanChuyen: ctlc.ngayLuanChuyen ? new Date(ctlc.ngayLuanChuyen) : undefined,
+              },
+            }),
+          ),
+        );
+      }
+
       await this.thongKeSnapshot.invalidateAll(tx);
 
       return {
         success: true,
         message: 'Cập nhật phiếu sự cố thành công!',
-        data: updated,
+        data: { ...updated, chiTietLuanChuyenMoi: danhSachLuanChuyenMoi },
       };
     });
   }
 
-  // Xóa phiếu sự cố (soft delete)
   async remove(id: number) {
     const existing = await this.prisma.phieuSuCo.findFirst({
       where: { suCoId: id, isDelete: false },

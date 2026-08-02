@@ -17,17 +17,21 @@ import { UpdateChiTietLuanChuyenDto } from '../dto/update-chi-tiet-luan-chuyen.d
 @ApiTags('Chi Tiết Luân Chuyển')
 @Controller('chi-tiet-luan-chuyen')
 export class ChiTietLuanChuyenController {
-  constructor(private readonly service: ChiTietLuanChuyenService) {}
+  constructor(private readonly service: ChiTietLuanChuyenService) { }
 
   @Post()
   create(@Body() dto: CreateChiTietLuanChuyenDto) {
     return this.service.create(dto);
   }
 
-  @Get()
-  findAll(@Query('suCoId') suCoId?: string) {
-    if (suCoId) return this.service.findBySuCo(Number(suCoId));
+  @Get('findall')
+  findAll() {
     return this.service.findAll();
+  }
+
+  @Get('find-by-su-co')
+  findBySuCo(@Query('suCoId') suCoId: string) {
+    return this.service.findBySuCo(Number(suCoId));
   }
 
   @Get(':id')

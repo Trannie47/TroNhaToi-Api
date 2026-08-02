@@ -22,7 +22,7 @@ export class PhieuSuCoController {
     return this.service.create(dto);
   }
 
-  @Get()
+  @Get('findall')
   findAll() {
     return this.service.findAll();
   }
