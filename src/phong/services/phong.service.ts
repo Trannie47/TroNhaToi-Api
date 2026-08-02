@@ -219,4 +219,39 @@ export class PhongService {
       return phong;
     });
   }
+
+  async findPhongConChoTrong() {
+    const danhSachPhong = await this.prisma.phong.findMany({
+      where: { isDelete: false },
+      include: {
+        loaiPhong: true,
+        HopDong: {
+          where: {
+            isDelete: false,
+            trangThai: 1,
+          },
+        },
+      },
+    });
+
+    const result = danhSachPhong
+      .map((phong) => {
+        const { HopDong, ...phongData } = phong;
+        const soNguoiHienTai = HopDong.length;
+        const soNguoiToiDa = phongData.loaiPhong?.soNguoiToiDa ?? null;
+
+        return {
+          ...phongData,
+          soNguoiHienTai,
+          soNguoiToiDa,
+          soChoConLai: soNguoiToiDa !== null ? soNguoiToiDa - soNguoiHienTai : null,
+        };
+      })
+      .filter((phong) => phong.soNguoiToiDa !== null && phong.soNguoiHienTai < phong.soNguoiToiDa)
+      .sort((a, b) => (b.soChoConLai ?? 0) - (a.soChoConLai ?? 0));
+
+    return result;
+  }
+
+
 }
