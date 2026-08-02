@@ -1,0 +1,47 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  ParseIntPipe,
+} from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { ChiTietLuanChuyenService } from '../services/chi-tiet-luan-chuyen.service';
+import { CreateChiTietLuanChuyenDto } from '../dto/create-chi-tiet-luan-chuyen.dto';
+import { UpdateChiTietLuanChuyenDto } from '../dto/update-chi-tiet-luan-chuyen.dto';
+
+@ApiTags('Chi Tiết Luân Chuyển')
+@Controller('chi-tiet-luan-chuyen')
+export class ChiTietLuanChuyenController {
+  constructor(private readonly service: ChiTietLuanChuyenService) {}
+
+  @Post()
+  create(@Body() dto: CreateChiTietLuanChuyenDto) {
+    return this.service.create(dto);
+  }
+
+  @Get()
+  findAll(@Query('suCoId') suCoId?: string) {
+    if (suCoId) return this.service.findBySuCo(Number(suCoId));
+    return this.service.findAll();
+  }
+
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.service.findOne(id);
+  }
+
+  @Patch(':id')
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateChiTietLuanChuyenDto) {
+    return this.service.update(id, dto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.service.remove(id);
+  }
+}

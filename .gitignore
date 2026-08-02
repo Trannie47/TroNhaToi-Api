@@ -2,12 +2,13 @@
 /dist
 /node_modules
 /prisma/migrations
-tsconfig.tsbuildinfo
+
 
 # Environment variables
 .env
 .env.development
 .env.local
+.tsbuildinfo
 
 # Testing
 /coverage
