@@ -37,7 +37,6 @@ model Phong {
   loaiPhong          LoaiPhong?           @relation(fields: [maLoaiPhong], references: [maLoaiPhong], onDelete: NoAction, onUpdate: NoAction, map: "phong_ibfk_1")
   HopDong            HopDong[]
   LapRap             LapRap[]
-  SuaChua            SuaChua[]
   NguoiLuuTruTamThoi NguoiLuuTruTamThoi[]
   PhuongTien         PhuongTien[]
   PhieuSuCo            PhieuSuCo[]
@@ -338,10 +337,11 @@ model LapRap {
   phongId   Int?      @map("PhongID")
   thietBiId Int?      @map("thietBiID")
   ngayLap   DateTime? @db.Date
-  soLuong   Int?
+  ghiChu    String?   @db.VarChar(255)
   isDelete  Boolean   @default(false)
   phong     Phong?    @relation(fields: [phongId], references: [phongId], onDelete: Restrict, onUpdate: Restrict, map: "LapRap_FK1")
   thietbi   ThietBi?  @relation(fields: [thietBiId], references: [thietBiId], onDelete: Restrict, onUpdate: Restrict, map: "LapRap_FK2")
+  suachua   SuaChua[]
 
   @@index([phongId], map: "PhongID")
   @@index([thietBiId], map: "thietBiID")
@@ -350,17 +350,17 @@ model LapRap {
 
 model SuaChua {
   id            Int            @id @default(autoincrement())
-  phongId       Int?           @map("PhongID")
-  thietBiId     Int?           @map("thietBiID")
+  thietBiId     Int            @map("thietBiID")
+  lapRapId      Int?           @map("LapRapID")
   nguyenNhan    String?        @db.Text
   ngaySuaChua   DateTime?      @db.Date
   isDelete      Boolean        @default(false)
   hoadonsuachua HoaDonSuaChua?
-  phong         Phong?         @relation(fields: [phongId], references: [phongId], onDelete: Restrict, onUpdate: Restrict, map: "suaChua_FK")
-  thietbi       ThietBi?       @relation(fields: [thietBiId], references: [thietBiId], onDelete: Restrict, onUpdate: Restrict, map: "suaChua_FK2")
+  thietbi       ThietBi        @relation(fields: [thietBiId], references: [thietBiId], onDelete: Restrict, onUpdate: Restrict, map: "suaChua_FK2")
+  lapRap        LapRap?        @relation(fields: [lapRapId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "suaChua_FK")
 
-  @@index([phongId], map: "PhongID")
   @@index([thietBiId], map: "thietBiID")
+  @@index([lapRapId], map: "LapRapID")
   @@map("suachua")
 }
 

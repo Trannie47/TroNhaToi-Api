@@ -47,7 +47,7 @@ export class PhongService {
       include: {
         HopDong: {
           where: { isDelete: false, trangThai: { not: 2 } },
-                    include: {
+          include: {
             hopDongNguoiThue: {
               where: { isDelete: false },
               include: { nguoithue: true },
@@ -142,42 +142,45 @@ export class PhongService {
       );
     }
 
+    const lapRapIds = dsLapRap.map((lr) => lr.id);
+
+    // Tra cứu sự cố sửa chữa theo đúng bản ghi lắp ráp (lapRapId), không còn qua phongId nữa
     const dsSuaChua = await this.prisma.suaChua.findMany({
       where: {
-        thietBiId,
+        lapRapId: { in: lapRapIds },
         isDelete: false,
       },
       include: { hoadonsuachua: true },
     });
 
-    const thongKeTheoPhong = new Map<number, { dangSua: number; hong: number }>();
+    const thongKeTheoLapRap = new Map<number, { dangSua: boolean; hong: boolean }>();
 
     for (const sc of dsSuaChua) {
-      if (sc.phongId == null) continue;
+      if (sc.lapRapId == null) continue;
 
       const hoaDon =
         sc.hoadonsuachua && !sc.hoadonsuachua.isDelete ? sc.hoadonsuachua : null;
 
-      const current = thongKeTheoPhong.get(sc.phongId) ?? { dangSua: 0, hong: 0 };
+      const current = thongKeTheoLapRap.get(sc.lapRapId) ?? { dangSua: false, hong: false };
 
       if (hoaDon?.trangThai === 3) {
-        current.hong += 1;
+        current.hong = true;
       } else if (!hoaDon || hoaDon.trangThai === 0) {
-        current.dangSua += 1;
+        current.dangSua = true;
       }
       // trangThai === 1 hoặc 2: không tính
 
-      thongKeTheoPhong.set(sc.phongId, current);
+      thongKeTheoLapRap.set(sc.lapRapId, current);
     }
 
     const result = dsLapRap
       .filter((lr) => {
         if (lr.phongId == null) return false;
 
-        const thongKe = thongKeTheoPhong.get(lr.phongId) ?? { dangSua: 0, hong: 0 };
-        const soLuongLapRap = lr.soLuong ?? 0;
-
-        return soLuongLapRap > thongKe.dangSua + thongKe.hong;
+        // Mỗi LapRap giờ là 1 thiết bị cụ thể — chỉ tính là "còn dùng được"
+        // nếu không đang sửa chữa và không hỏng
+        const thongKe = thongKeTheoLapRap.get(lr.id) ?? { dangSua: false, hong: false };
+        return !thongKe.dangSua && !thongKe.hong;
       })
       .map((lr) => {
         const phong = lr.phong as any;

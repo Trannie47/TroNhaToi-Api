@@ -11,21 +11,21 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @Controller('lap-rap')
 export class LapRapController {
-  constructor(private readonly lapRapService: LapRapService) {}
+  constructor(private readonly lapRapService: LapRapService) { }
 
   @Post()
   @ApiOperation({ summary: 'Tạo Lắp Ráp Thiết Bị mới' })
   create(@Body() dto: CreateLapRapDto) {
-   return this.lapRapService.taoLapRap(dto);
+    return this.lapRapService.taoLapRap(dto);
   }
+
   @Patch(':id')
-async capNhatLapRap(
-  @Param('id', ParseIntPipe) id: number,
-  @Body('soLuong', ParseIntPipe) soLuong: number,
-) {
-  return this.lapRapService.capNhatLapRap(id, soLuong);
-}
-  //---
+  async capNhatGhiChu(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('ghiChu') ghiChu: string,
+  ) {
+    return this.lapRapService.update(id, { ghiChu });
+  }
 
   @Get()
   @ApiOperation({ summary: 'Danh sách Lắp Ráp Thiết Bị' })

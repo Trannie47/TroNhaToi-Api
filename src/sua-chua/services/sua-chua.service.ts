@@ -15,14 +15,12 @@ export class SuaChuaService {
   findAll() {
     return this.prisma.suaChua.findMany({
       where: { isDelete: false },
-      // include: { phong: { select: { phongId: true, tenPhong: true } }, hoaDonSuaChua: true },
     });
   }
 
   async findOne(id: number) {
     const item = await this.prisma.suaChua.findFirst({
       where: { id, isDelete: false },
-      // include: { phong: { select: { phongId: true, tenPhong: true } }, hoaDonSuaChua: true },
     });
 
     if (!item) {
@@ -79,8 +77,8 @@ export class SuaChuaService {
         },
         include: {
           hoadonsuachua: true,
-          phong: true,
           thietbi: true,
+          lapRap: true,
         },
       });
       await this.thongKeSnapshotService.invalidateAll(tx);
@@ -94,13 +92,11 @@ export class SuaChuaService {
     const { hoaDonSuaChua, ...suaChuaData } = dto;
 
     return this.prisma.$transaction(async (tx) => {
-      // Cập nhật sửa chữa
       await tx.suaChua.update({
         where: { id },
         data: suaChuaData,
       });
 
-      // Có gửi hóa đơn mới xử lý
       if (hoaDonSuaChua != null) {
         const hoaDon = await tx.hoaDonSuaChua.findFirst({
           where: {
@@ -110,7 +106,6 @@ export class SuaChuaService {
         });
 
         if (hoaDon == null) {
-          // Chưa có -> thêm mới
           const maHoaDonSc = await this.generateMaHoaDonSc();
 
           await tx.hoaDonSuaChua.create({
@@ -124,7 +119,6 @@ export class SuaChuaService {
             },
           });
         } else {
-          // Đã có -> cập nhật
           await tx.hoaDonSuaChua.update({
             where: {
               maHoaDonSc: hoaDon.maHoaDonSc,
@@ -143,8 +137,8 @@ export class SuaChuaService {
         where: { id },
         include: {
           hoadonsuachua: true,
-          phong: true,
           thietbi: true,
+          lapRap: true,
         },
       });
       await this.thongKeSnapshotService.invalidateAll(tx);
@@ -172,8 +166,9 @@ export class SuaChuaService {
       where.nguyenNhan = { contains: q };
     }
 
+    // Phòng không còn là field trực tiếp trên SuaChua, lọc qua quan hệ lapRap
     if (phongId !== undefined) {
-      where.phongId = phongId;
+      where.lapRap = { phongId };
     }
 
     if (thietBiId !== undefined) {
@@ -210,9 +205,11 @@ export class SuaChuaService {
       },
       include: {
         hoadonsuachua: true,
-        phong: {
-          select: {
-            tenPhong: true,
+        lapRap: {
+          include: {
+            phong: {
+              select: { tenPhong: true },
+            },
           },
         },
       },
@@ -230,12 +227,11 @@ export class SuaChuaService {
           return 0;
         }
 
-        // Chưa có hóa đơn lên trước
         return aCoHoaDon ? 1 : -1;
       })
-      .map(({ phong, ...item }) => ({
+      .map(({ lapRap, ...item }) => ({
         ...item,
-        tenPhong: phong?.tenPhong,
+        tenPhong: lapRap?.phong?.tenPhong ?? null,
       }));
   }
 }

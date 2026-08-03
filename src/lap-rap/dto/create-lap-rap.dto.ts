@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsOptional, IsString } from 'class-validator';
 import { PartialType } from '@nestjs/mapped-types';
 
@@ -18,11 +18,10 @@ export class CreateLapRapDto {
   @IsString()
   ngayLap?: string;
 
-  @ApiPropertyOptional({ description: 'Số lượng' })
+  @ApiPropertyOptional({ description: 'Ghi chú' })
   @IsOptional()
-  @IsInt()
-  soLuong?: number;
-
+  @IsString()
+  ghiChu?: string;
 }
 
 export class UpdateLapRapDto extends PartialType(CreateLapRapDto) {}

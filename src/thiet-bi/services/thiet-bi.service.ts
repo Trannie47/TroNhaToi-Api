@@ -36,7 +36,7 @@ export class ThietBiService {
             isDelete: false,
           },
           select: {
-            soLuong: true,
+            id: true,
           },
         },
       },
@@ -48,10 +48,8 @@ export class ThietBiService {
         0,
       );
 
-      const soLuongLapDat = r.laprap.reduce(
-        (tong, item) => tong + (item.soLuong ?? 0),
-        0,
-      );
+      // Mỗi bản ghi lắp ráp giờ = 1 thiết bị, nên đếm số bản ghi thay vì cộng dồn soLuong
+      const soLuongLapDat = r.laprap.length;
 
       const { lichSuMua, laprap, ...thietBi } = r;
 
@@ -158,58 +156,55 @@ export class ThietBiService {
       throw new NotFoundException(`Phòng với ID ${phongId} không tồn tại`);
     }
 
-    const [dsLapRap, dsSuaChua] = await Promise.all([
-      this.prisma.lapRap.findMany({
-        where: {
-          phongId,
-          isDelete: false,
-          thietbi: { isDelete: false },
-        },
-        include: { thietbi: true },
-        orderBy: { id: 'desc' },
-      }),
+    const dsLapRap = await this.prisma.lapRap.findMany({
+      where: {
+        phongId,
+        isDelete: false,
+        thietbi: { isDelete: false },
+      },
+      include: { thietbi: true },
+      orderBy: { id: 'desc' },
+    });
 
-      this.prisma.suaChua.findMany({
-        where: {
-          phongId,
-          isDelete: false,
-        },
-        include: {
-          hoadonsuachua: true,
-        },
-      }),
-    ]);
+    const lapRapIds = dsLapRap.map((lr) => lr.id);
+
+    // Sự cố sửa chữa giờ tra theo đúng bản ghi lắp ráp (lapRapId), chính xác hơn theo thietBiId
+    const dsSuaChua = await this.prisma.suaChua.findMany({
+      where: {
+        lapRapId: { in: lapRapIds },
+        isDelete: false,
+      },
+      include: {
+        hoadonsuachua: true,
+      },
+    });
 
     const thongKeSuaChua = new Map<number, { dangSua: number; hong: number }>();
 
     for (const sc of dsSuaChua) {
-      if (sc.thietBiId == null) continue;
+      if (sc.lapRapId == null) continue;
 
-      // Coi hóa đơn đã bị xóa như KHÔNG có hóa đơn
       const hoaDon =
         sc.hoadonsuachua && !sc.hoadonsuachua.isDelete
           ? sc.hoadonsuachua
           : null;
 
       const current =
-        thongKeSuaChua.get(sc.thietBiId) ?? { dangSua: 0, hong: 0 };
+        thongKeSuaChua.get(sc.lapRapId) ?? { dangSua: 0, hong: 0 };
 
       if (hoaDon?.trangThai === 3) {
         current.hong += 1;
       } else if (!hoaDon || hoaDon.trangThai === 0) {
         current.dangSua += 1;
       }
-      // trangThai === 1 hoặc 2: không tính vào đang sửa/hỏng
 
-      thongKeSuaChua.set(sc.thietBiId, current);
+      thongKeSuaChua.set(sc.lapRapId, current);
     }
 
     return dsLapRap.map((item) => {
       const { thietbi, isDelete, ...lapRapRest } = item;
 
-      const thongKe = thietbi
-        ? (thongKeSuaChua.get(thietbi.thietBiId) ?? { dangSua: 0, hong: 0 })
-        : { dangSua: 0, hong: 0 };
+      const thongKe = thongKeSuaChua.get(item.id) ?? { dangSua: 0, hong: 0 };
 
       return {
         ...lapRapRest,

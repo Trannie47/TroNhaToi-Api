@@ -10,7 +10,7 @@ export class LapRapService {
   constructor(
     private prisma: PrismaService,
     private thongKeSnapshotService: ThongKeSnapshotService,
-  ) {}
+  ) { }
 
   async taoLapRap(dto: CreateLapRapDto) {
     const phong = await this.prisma.phong.findFirst({
@@ -19,7 +19,8 @@ export class LapRapService {
     if (!phong) {
       throw new NotFoundException(`Phòng với ID ${dto.phongId} không tồn tại`);
     }
-    //Lấy thông tin Thiết bị + Lịch sử mua + Lắp ráp hiện tại
+
+    // Lấy thông tin Thiết bị + Lịch sử mua + Số lượng đã lắp (đếm số bản ghi, vì mỗi LapRap giờ = 1 thiết bị vật lý)
     const thietBi = await this.prisma.thietBi.findFirst({
       where: { thietBiId: dto.thietBiId, isDelete: false },
       include: {
@@ -29,39 +30,34 @@ export class LapRapService {
         },
         laprap: {
           where: { isDelete: false },
-          select: { soLuong: true },
+          select: { id: true },
         },
       },
     });
     if (!thietBi) {
       throw new NotFoundException(`Thiết bị với ID ${dto.thietBiId} không tồn tại`);
     }
+
     const soLuongMua = thietBi.lichSuMua.reduce(
       (tong, item) => tong + (item.soLuong ?? 0),
       0,
     );
-
-    const soLuongDaLap = thietBi.laprap.reduce(
-      (tong, item) => tong + (item.soLuong ?? 0),
-      0,
-    );
-
+    const soLuongDaLap = thietBi.laprap.length;
     const soLuongConLai = soLuongMua - soLuongDaLap;
-    const soLuongCanLap = dto.soLuong ?? 1;
 
-    //Check nếu vượt quá tồn kho
-    if (soLuongCanLap > soLuongConLai) {
-      const conLaiText = soLuongConLai > 0 ? soLuongConLai : 0;
+    // Mỗi lần tạo lắp ráp = 1 thiết bị, kiểm tra còn hàng trong kho không
+    if (soLuongConLai < 1) {
       throw new BadRequestException(
-        `Số lượng thiết bị trong kho không đủ! (Kho còn: ${conLaiText}, Yêu cầu: ${soLuongCanLap})`,
+        `Số lượng thiết bị trong kho không đủ! (Kho còn: ${soLuongConLai > 0 ? soLuongConLai : 0})`,
       );
     }
+
     const lapRapMoi = await this.prisma.$transaction(async (tx) => {
       const result = await tx.lapRap.create({
         data: {
           phongId: dto.phongId,
           thietBiId: dto.thietBiId,
-          soLuong: dto.soLuong ?? 1,
+          ghiChu: dto.ghiChu,
           ngayLap: dto.ngayLap ? new Date(dto.ngayLap) : new Date(),
         },
         include: {
@@ -88,83 +84,15 @@ export class LapRapService {
     };
   }
 
-async capNhatLapRap(id: number, soLuongMoi: number) {
-  const lapRap = await this.prisma.lapRap.findFirst({
-    where: { id, isDelete: false },
-    include: {
-      thietbi: {
-        include: {
-          lichSuMua: { where: { isDelete: false }, select: { soLuong: true } },
-          laprap: { where: { isDelete: false }, select: { soLuong: true } },
-        },
-      },
-    },
-  });
-
-  if (!lapRap) {
-    throw new NotFoundException(`Bản ghi lắp ráp với ID ${id} không tồn tại`);
-  }
-
-  // TH1: Số lượng mới <= 0 -> Đánh dấu xóa
-  if (soLuongMoi <= 0) {
-    return this.prisma.$transaction(async (tx) => {
-      const removed = await tx.lapRap.update({
-        where: { id },
-        data: { isDelete: true },
-      });
-      await this.thongKeSnapshotService.invalidateAll(tx);
-      return removed;
-    });
-  }
-
-  const soLuongHienTai = lapRap.soLuong ?? 1;
-  const chanhLec = soLuongMoi - soLuongHienTai; // > 0 nếu tăng, < 0 nếu giảm
-
-  // TH2: Nếu TĂNG số lượng -> Kiểm tra tồn kho có đủ cho phần tăng thêm không
-  if (chanhLec > 0) {
-    const thietBi = lapRap.thietbi;
-    const soLuongMua = thietBi.lichSuMua.reduce((t, i) => t + (i.soLuong ?? 0), 0);
-    const soLuongDaLap = thietBi.laprap.reduce((t, i) => t + (i.soLuong ?? 0), 0);
-    const soLuongConLai = soLuongMua - soLuongDaLap;
-
-    if (chanhLec > soLuongConLai) {
-      throw new BadRequestException(
-        `Số lượng trong kho không đủ! (Kho còn: ${soLuongConLai}, Cần thêm: ${chanhLec})`,
-      );
-    }
-  }
-
-  // TH3: Cập nhật trực tiếp số lượng mới vào đúng ID bản ghi cũ
-  const updated = await this.prisma.$transaction(async (tx) => {
-    const result = await tx.lapRap.update({
-      where: { id },
-      data: { soLuong: soLuongMoi },
-      include: { thietbi: true },
-    });
-    await this.thongKeSnapshotService.invalidateAll(tx);
-    return result;
-  });
-
-  const { thietbi, isDelete, ...lapRapRest } = updated;
-  let thietBiTransform = null;
-  if (thietbi) {
-    const { thietBiId, isDelete: _, ...tbRest } = thietbi;
-    thietBiTransform = { ...tbRest, thietBiID: thietBiId };
-  }
-
-  return { ...lapRapRest, thietBi: thietBiTransform };
-}
   findAll() {
     return this.prisma.lapRap.findMany({
       where: { isDelete: false },
-      //include: { phong: { select: { phongId: true, tenPhong: true } }, thietBi: true },
     });
   }
 
   async findOne(id: number) {
     const item = await this.prisma.lapRap.findFirst({
       where: { id: id, isDelete: false },
-      //include: { phong: { select: { phongId: true, tenPhong: true } }, thietBi: true },
     });
     if (!item) throw new NotFoundException(`LapRap với id ${id} không tồn tại`);
     return item;
@@ -201,6 +129,7 @@ async capNhatLapRap(id: number, soLuongMoi: number) {
       return removed;
     });
   }
+
   async search(req: SearchLapRapDto) {
     const { phongId, thietBiId, limit = 10, offset = 0, sortBy = 'id', sort = 'desc' } = req;
     const where: any = { isDelete: false };
@@ -236,5 +165,4 @@ async capNhatLapRap(id: number, soLuongMoi: number) {
         : {}),
     });
   }
-
 }
