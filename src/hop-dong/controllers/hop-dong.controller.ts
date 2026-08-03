@@ -19,20 +19,36 @@ export class HopDongController {
     private readonly cloudinaryService: CloudinaryService
   ) {}
 
-  @Post('createContract')
+@Post('createContract')
   @ApiOperation({ summary: 'Tạo Hợp Đồng mới' })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FilesInterceptor('files'))
-  async create(@Body() body: CreateHopDongDto, 
-    @UploadedFiles() files: Array<Express.Multer.File>) {
-      const listUrlImage : string[] = [];
-      if(files && files.length > 0){
-        for(const file of files){
-          const result = await this.cloudinaryService.uploadImage(file);
-          listUrlImage.push(result.secure_url);
-        } 
+  async create(
+    @Body() body: any,
+    @UploadedFiles() files: Array<Express.Multer.File>,
+  ) {
+    // Ép kiểu các trường số nguyên/số thực bị lọt dạng string qua FormData
+    if (body.phongId) body.phongId = Number(body.phongId);
+    if (body.tienCoc) body.tienCoc = parseFloat(body.tienCoc);
+    if (body.giaPhongThucTe) body.giaPhongThucTe = parseFloat(body.giaPhongThucTe);
+
+    if (body.danhSachThanhVien && typeof body.danhSachThanhVien === 'string') {
+      try {
+        body.danhSachThanhVien = JSON.parse(body.danhSachThanhVien);
+      } catch (e) {
+        body.danhSachThanhVien = [];
       }
-    return this.hopDongService.create(body, listUrlImage);
+    }
+
+    const listUrlImage: string[] = [];
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const result = await this.cloudinaryService.uploadImage(file);
+        listUrlImage.push(result.secure_url);
+      }
+    }
+
+    return this.hopDongService.create(body as CreateHopDongDto, listUrlImage);
   }
   @Post(':hopDongId/updateContract')
   @ApiOperation({ summary: 'Gia hạn / Cập nhật lại hợp đồng - kết thúc HĐ cũ và tạo HĐ mới' })

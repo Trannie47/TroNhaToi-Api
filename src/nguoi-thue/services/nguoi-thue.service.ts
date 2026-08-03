@@ -18,21 +18,109 @@ export class NguoiThueService {
       orderBy: { idnt: 'desc' },
     });
   }
-  // Lấy danh sách người thuê có thể tạo hợp đồng (bao gồm những người chưa có hợp đồng và những người đã có hợp đồng)
-  async getNguoiThueAvailableForContract() {
-    return this.prisma.nguoiThue.findMany({
+    private tinhTuoi(ngaySinh: Date, mocTinhTuoi: Date): number {
+    let tuoi = mocTinhTuoi.getFullYear() - ngaySinh.getFullYear();
+    const chuaDenSinhNhat =
+      mocTinhTuoi.getMonth() < ngaySinh.getMonth() ||
+      (mocTinhTuoi.getMonth() === ngaySinh.getMonth() &&
+        mocTinhTuoi.getDate() < ngaySinh.getDate());
+
+    if (chuaDenSinhNhat) {
+      tuoi -= 1;
+    }
+
+    return tuoi;
+  }
+
+  private parseMocTinhTuoi(ngayKy?: string): Date {
+    if (!ngayKy) {
+      return new Date();
+    }
+
+    const mocTinhTuoi = new Date(ngayKy);
+    if (Number.isNaN(mocTinhTuoi.getTime())) {
+      throw new BadRequestException('Ngày ký hợp đồng không hợp lệ.');
+    }
+
+    return mocTinhTuoi;
+  }
+
+  // Danh sách người đủ điều kiện làm người đại diện hợp đồng.
+  // Người đang có hợp đồng khác vẫn được phép xuất hiện vì có thể đứng tên nhiều hợp đồng.
+  async getNguoiThueAvailableForRepresentative(ngayKy?: string) {
+    const mocTinhTuoi = this.parseMocTinhTuoi(ngayKy);
+    const danhSach = await this.prisma.nguoiThue.findMany({
+      where: { isDelete: false },
+      select: {
+        idnt: true,
+        hoTen: true,
+        ngaySinh: true,
+        trangThai: true,
+      },
+      orderBy: { hoTen: 'asc' },
+    });
+
+    return danhSach
+      .filter((nguoiThue) => {
+        if (!nguoiThue.ngaySinh) {
+          return false;
+        }
+
+        return this.tinhTuoi(nguoiThue.ngaySinh, mocTinhTuoi) >= 18;
+      })
+      .map((nguoiThue) => ({
+        ...nguoiThue,
+        tuoi: this.tinhTuoi(nguoiThue.ngaySinh!, mocTinhTuoi),
+        coTheLamDaiDien: true,
+      }));
+  }
+
+  // Danh sách người có thể thêm là thành viên ở cùng.
+  // Không giới hạn tuổi, nhưng không hiển thị người đang thuộc một hợp đồng hoạt động khác.
+  async getNguoiThueAvailableForMember(excludeIdnt?: number) {
+    const thanhVienDangHoatDong = await this.prisma.hopDongNguoiThue.findMany({
       where: {
         isDelete: false,
-        trangThai: { in: [0, 1] }   // Chỉ lấyd những người có trạng thái 0(chưa thuê chỉ mới tạo) 1(đang thuê) còn những người đã dọn đi thì không lấy
+        hopDong: {
+          isDelete: false,
+          trangThai: { in: [0, 1] },
+        },
+      },
+      select: { idnt: true },
+    });
+
+    const danhSachIdntDaCoPhong = thanhVienDangHoatDong.map((item) => item.idnt);
+    const danhSachIdntCanLoai = excludeIdnt === undefined
+      ? danhSachIdntDaCoPhong
+      : [...danhSachIdntDaCoPhong, excludeIdnt];
+
+    const danhSach = await this.prisma.nguoiThue.findMany({
+      where: {
+        isDelete: false,
+        ...(danhSachIdntCanLoai.length > 0
+          ? { idnt: { notIn: danhSachIdntCanLoai } }
+          : {}),
       },
       select: {
         idnt: true,
         hoTen: true,
+        ngaySinh: true,
+        trangThai: true,
       },
-      orderBy: {
-        hoTen: 'asc',
-      }
+      orderBy: { hoTen: 'asc' },
     });
+
+    return danhSach.map((nguoiThue) => ({
+      ...nguoiThue,
+      tuoi: nguoiThue.ngaySinh
+        ? this.tinhTuoi(nguoiThue.ngaySinh, new Date())
+        : null,
+      coTheLamThanhVien: true,
+    }));
+  }
+
+  async getNguoiThueAvailableForContract(ngayKy?: string) {
+    return this.getNguoiThueAvailableForRepresentative(ngayKy);
   }
   async findRoom_NguoiThue(id: number) {
     const listHopDong = await this.prisma.hopDong.findMany({

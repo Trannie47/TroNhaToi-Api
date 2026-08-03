@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { NguoiThueService } from '../services/nguoi-thue.service';
 import { CreateNguoiThueDto } from '../dto/create-nguoi-thue.dto';
 import { UpdateNguoiThueDto } from '../dto/update-nguoi-thue.dto';
@@ -24,10 +24,42 @@ export class NguoiThueController {
     return this.nguoiThueService.findAllNguoiThue();
   }
 
-  @Get('nguoiThueAvailableForContract')
-  @ApiOperation({ summary: 'Lấy danh sách các Người Thuê (chưa có hợp đồng và đã có hợp đồng) để tạo hợp đồng' })
-  async getNguoiThueAvailableForContract() {
-    return this.nguoiThueService.getNguoiThueAvailableForContract();
+    @Get('nguoiThueAvailableForContract')
+  @ApiOperation({ summary: 'Lấy danh sách người đủ 18 tuổi để làm đại diện hợp đồng' })
+  @ApiQuery({
+    name: 'ngayKy',
+    required: false,
+    description: 'Ngày bắt đầu hợp đồng dùng để tính tuổi, định dạng YYYY-MM-DD',
+  })
+  async getNguoiThueAvailableForContract(@Query('ngayKy') ngayKy?: string) {
+    return this.nguoiThueService.getNguoiThueAvailableForRepresentative(ngayKy);
+  }
+
+  @Get('available-representatives')
+  @ApiOperation({ summary: 'Lấy danh sách người đủ điều kiện làm đại diện hợp đồng' })
+  @ApiQuery({
+    name: 'ngayKy',
+    required: false,
+    description: 'Ngày bắt đầu hợp đồng dùng để tính tuổi, định dạng YYYY-MM-DD',
+  })
+  getAvailableRepresentatives(@Query('ngayKy') ngayKy?: string) {
+    return this.nguoiThueService.getNguoiThueAvailableForRepresentative(ngayKy);
+  }
+
+  @Get('available-members')
+  @ApiOperation({ summary: 'Lấy danh sách người có thể thêm làm thành viên ở cùng' })
+  @ApiQuery({
+    name: 'excludeIdnt',
+    required: false,
+    description: 'ID người đại diện cần loại khỏi danh sách',
+    type: Number,
+  })
+  getAvailableMembers(@Query('excludeIdnt') excludeIdnt?: string) {
+    const parsedExcludeIdnt = excludeIdnt === undefined
+      ? undefined
+      : Number(excludeIdnt);
+
+    return this.nguoiThueService.getNguoiThueAvailableForMember(parsedExcludeIdnt);
   }
 
   @Get(':idnt/listRoomNguoiThue')
