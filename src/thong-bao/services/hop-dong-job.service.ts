@@ -32,10 +32,10 @@ export class HopDongJobService {
           lte: mocCanhBao,
         },
       },
-      include: {
-        phong: { select: { tenPhong: true } },
-        nguoithue: { select: { hoTen: true, sdt: true } },
-      },
+      // include: {
+      //   phong: { select: { tenPhong: true } },
+      //   nguoithue: { select: { hoTen: true, sdt: true } },
+      // },
     });
 
     if (hopDongSapHet.length === 0) {
@@ -49,24 +49,24 @@ export class HopDongJobService {
       const soNgayCon = Math.ceil(
         (hd.ngayHetHan!.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
       );
-      const tenPhong = hd.phong?.tenPhong ?? '';
-      const hoTen = hd.nguoithue?.hoTen ?? '';
-      const sdt = hd.nguoithue?.sdt ?? '';
-      const notification = await this.thongBaoService.upsertHopDongNotification(
-        hd.hopDongId,
-        soNgayCon,
-        tenPhong,
-        hoTen,
-        sdt,
-        hd.ngayHetHan!,
-      );
-      notifications.push({
-        ...notification,
-        hoTen,
-        sdt,
-        tenPhong,
-        ngayHetHan: hd.ngayHetHan,
-      });
+      // const tenPhong = hd.phong?.tenPhong ?? '';
+      // const hoTen = hd.nguoithue?.hoTen ?? '';
+      // const sdt = hd.nguoithue?.sdt ?? '';
+      // const notification = await this.thongBaoService.upsertHopDongNotification(
+      //   hd.hopDongId,
+      //   soNgayCon,
+      //   tenPhong,
+      //   hoTen,
+      //   sdt,
+      //   hd.ngayHetHan!,
+      // );
+      // notifications.push({
+      //   ...notification,
+      //   hoTen,
+      //   sdt,
+      //   tenPhong,
+      //   ngayHetHan: hd.ngayHetHan,
+      // });
     }
 
     this.logger.log(`Đã tạo/cập nhật ${notifications.length} thông báo.`);

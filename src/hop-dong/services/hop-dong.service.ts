@@ -29,11 +29,16 @@ export class HopDongService {
             }
           }
          },
-         nguoithue: {
-          select:{
-            hoTen: true,
-          }
-         }
+         hopDongNguoiThue: {
+          where: { isDelete: false },
+          include: {
+            nguoithue: {
+              select: {
+                hoTen: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
         ngayKy: 'desc',
@@ -231,10 +236,16 @@ export class HopDongService {
           data: { trangThai: 1 },
         });
 
+        const hopDongNguoiThues = await prisma.hopDongNguoiThue.findMany({
+        where: { hopDongId: id, isDelete: false },
+      });
+
+      for (const item of hopDongNguoiThues) {
         await prisma.nguoiThue.update({
-          where: { idnt: existingHopDong.idnt },
+          where: { idnt: item.idnt },
           data: { trangThai: 1 },
         });
+      }
       }
 
       await this.thongKeSnapshotService.invalidateAll(prisma);
@@ -283,12 +294,17 @@ if (existingHopDong.trangThai === 2) {
         trangThai: 2, // 2: đã kết thúc
       },
       include: {
-        nguoithue: {
-          select:{
-            hoTen: true,
-            sdt: true,
-          }
-        }
+        hopDongNguoiThue: {
+          where: { isDelete: false },
+          include: {
+            nguoithue: {
+              select: {
+                hoTen: true,
+                sdt: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
         ngayHetHan: 'desc', // Hợp đồng nào mới kết thúc gần đây nhất thì hiện lên đầu
@@ -375,9 +391,14 @@ if (existingHopDong.trangThai === 2) {
           phong: {
             select: { tenPhong: true },
           },
+          hopDongNguoiThue: {
+        where: { isDelete: false },
+        include: {
           nguoithue: {
             select: { hoTen: true },
           },
+        },
+      },
         },
       });
       await this.thongKeSnapshotService.invalidateAll(prisma);
@@ -422,12 +443,17 @@ if (existingHopDong.trangThai === 2) {
       );
     }
 
-    const { phongId, idnt } = existingHopDong;
+    const { phongId } = existingHopDong;
+    const thanhVienHopDong = await this.prisma.hopDongNguoiThue.findMany({
+      where: { hopDongId: id, isDelete: false },
+      select: { idnt: true },
+    });
+    const danhSachIdnt = thanhVienHopDong.map((member) => member.idnt);
 
     //KIỂM TRA CÔNG NỢ TẠP HÓA CỦA NGƯỜI THUÊ (Tiền mua hàng thực tế thì bắt buộc phải trả)
     const hoaDonTapHoaList = await this.prisma.hoaDonTapHoa.findMany({
       where: {
-        idnt: idnt,
+                idnt: { in: danhSachIdnt },
         isDelete: false,
       },
       include: {
@@ -487,22 +513,23 @@ if (existingHopDong.trangThai === 2) {
         });
       }
 
-      // ktra Xem người thuê này còn dính hợp đồng nào khác (0 hoặc 1) ở phòng khác không?
-      const conHopDongKhacCuaNguoiThue = await prisma.hopDong.findFirst({
-        where: {
-          idnt: idnt,
-          hopDongId: { not: id },
-          isDelete: false,
-          trangThai: { in: [0, 1] },
-        },
-      });
-
-      // Nếu người thuê không còn ở phòng nào khác reset trạng thái người thuê về 0 (Chưa thuê)
-      if (!conHopDongKhacCuaNguoiThue) {
-        await prisma.nguoiThue.update({
-          where: { idnt: idnt },
-          data: { trangThai: 0 }, 
+            // Cập nhật trạng thái từng thành viên nếu không còn hợp đồng hoạt động khác.
+      for (const member of thanhVienHopDong) {
+        const conHopDongKhacCuaNguoiThue = await prisma.hopDongNguoiThue.findFirst({
+          where: {
+            idnt: member.idnt,
+            hopDongId: { not: id },
+            isDelete: false,
+            hopDong: { isDelete: false, trangThai: { in: [0, 1] } },
+          },
         });
+
+        if (!conHopDongKhacCuaNguoiThue) {
+          await prisma.nguoiThue.update({
+            where: { idnt: member.idnt },
+            data: { trangThai: 0 },
+          });
+        }
       }
       return {
         success: true,
@@ -523,7 +550,12 @@ if (existingHopDong.trangThai === 2) {
       );
     }
 
-    const { phongId, idnt } = existingHopDong;
+        const { phongId } = existingHopDong;
+    const thanhVienHopDong = await this.prisma.hopDongNguoiThue.findMany({
+      where: { hopDongId: id, isDelete: false },
+      select: { idnt: true },
+    });
+    const danhSachIdnt = thanhVienHopDong.map((member) => member.idnt);
 
     //KIỂM TRA NỢ HÓA ĐƠN PHÒNG
     const hoaDonPhongChuaTra = await this.prisma.hoaDonPhong.findFirst({
@@ -543,7 +575,7 @@ if (existingHopDong.trangThai === 2) {
     //KIỂM TRA NỢ HÓA ĐƠN TẠP HÓA CỦA NGƯỜI THUÊ
     const hoaDonTapHoaList = await this.prisma.hoaDonTapHoa.findMany({
       where: {
-        idnt: idnt,
+                idnt: { in: danhSachIdnt },
         isDelete: false,
       },
       include: {
@@ -603,22 +635,23 @@ if (existingHopDong.trangThai === 2) {
         });
       }
 
-      //KIỂM TRA NGƯỜI THUÊ: Xem còn dính hợp đồng [0, 1] nào khác ở phòng khác không
-      const conHopDongKhacCuaNguoiThue = await prisma.hopDong.findFirst({
-        where: {
-          idnt: idnt,
-          hopDongId: { not: id },
-          isDelete: false,
-          trangThai: { in: [0, 1] },
-        },
-      });
-
-      // Nếu không còn -> Đưa trạng thái người thuê về 0 (Chưa thuê)
-      if (!conHopDongKhacCuaNguoiThue) {
-        await prisma.nguoiThue.update({
-          where: { idnt: idnt },
-          data: { trangThai: 0 },
+            // Cập nhật trạng thái từng thành viên nếu không còn hợp đồng hoạt động khác.
+      for (const member of thanhVienHopDong) {
+        const conHopDongKhacCuaNguoiThue = await prisma.hopDongNguoiThue.findFirst({
+          where: {
+            idnt: member.idnt,
+            hopDongId: { not: id },
+            isDelete: false,
+            hopDong: { isDelete: false, trangThai: { in: [0, 1] } },
+          },
         });
+
+        if (!conHopDongKhacCuaNguoiThue) {
+          await prisma.nguoiThue.update({
+            where: { idnt: member.idnt },
+            data: { trangThai: 0 },
+          });
+        }
       }
       return {
         success: true,

@@ -36,17 +36,23 @@ export class NguoiThueService {
   }
   async findRoom_NguoiThue(id: number) {
     const listHopDong = await this.prisma.hopDong.findMany({
-      where: {
-        idnt: id,
-        isDelete: false, // chỉ lấy những hợp đồng còn hiệu lực
-        trangThai: { not: 2 } // chỉ lấy những hợp đồng có trạng thái khác 2(đã dọn đi)
+            where: {
+        isDelete: false,
+        trangThai: { not: 2 },
+        hopDongNguoiThue: {
+          some: { idnt: id, isDelete: false },
+        },
       },
       include: {
         phong: {
           include: {
             loaiPhong: true,
           }
-        }
+        },
+        hopDongNguoiThue: {
+          where: { idnt: id, isDelete: false },
+          include: { nguoithue: true },
+        },
       }
     });
     return listHopDong.filter((hd) => hd.phong !== null && hd.isDelete === false); // list lấy cả thông tin  hợp đồng, phòng và loại phòng theo id người thuê
@@ -109,8 +115,12 @@ export class NguoiThueService {
     if (!tenant) {
       throw new NotFoundException(`Người thuê với id ${id} không tồn tại`);
     }
-    const hasHopDong = await this.prisma.hopDong.findFirst({
-      where: { idnt: id, isDelete: false, trangThai: { not: 2 } }, // Kiểm tra hợp đồng chưa bị xóa và chưa dọn đi
+        const hasHopDong = await this.prisma.hopDongNguoiThue.findFirst({
+      where: {
+        idnt: id,
+        isDelete: false,
+        hopDong: { isDelete: false, trangThai: { not: 2 } },
+      },
     });
     if (hasHopDong) {
       throw new BadRequestException(`Không thể xóa người thuê có hợp đồng đang hoạt động`);

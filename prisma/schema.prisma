@@ -58,8 +58,8 @@ model NguoiThue {
   gioiTinh           Boolean              @default(true)
   trangThai          Int                  @default(0)     /// 0 = Chưa thuê (mới tạo), 1 = Đang thuê hoạt động, 2 = Đã dọn đi
   isDelete           Boolean              @default(false)
-  hoaDonTapHoa       HoaDonTapHoa[]
-  HopDong            HopDong[]
+    hoaDonTapHoa       HoaDonTapHoa[]
+  hopDongNguoiThue   HopDongNguoiThue[]
   PhuongTien         PhuongTien[]
   NguoiLuuTruTamThoi NguoiLuuTruTamThoi[]
 
@@ -68,7 +68,6 @@ model NguoiThue {
 
 model HopDong {
   hopDongId      String        @id @map("HopDongID") @db.VarChar(30)
-  idnt           Int           @map("IDNT")
   phongId        Int?          @map("PhongID")
   ngayKy         DateTime?     @db.Date
   ngayHetHan     DateTime?     @db.Date
@@ -79,13 +78,28 @@ model HopDong {
   anhHopDong     String?       @db.Text
   isDelete       Boolean       @default(false)
   hoaDonPhong    HoaDonPhong[]
-  nguoithue      NguoiThue     @relation(fields: [idnt], references: [idnt], onUpdate: Restrict, map: "HopDong_Fk1")
+  hopDongNguoiThue HopDongNguoiThue[]
   phong          Phong?        @relation(fields: [phongId], references: [phongId], onDelete: Restrict, onUpdate: Restrict, map: "HopDong_Fk2")
   chiTietLuanChuyen ChiTietLuanChuyen[]
 
-  @@index([idnt], map: "IDNT")
   @@index([phongId], map: "PhongID")
   @@map("hopdong")
+}
+
+model HopDongNguoiThue {
+  id                 Int      @id @default(autoincrement())
+  hopDongId          String   @map("HopDongID") @db.VarChar(30)
+  idnt               Int      @map("IDNT")
+  laDaiDien          Boolean  @default(false)
+  quanHeVoiDaiDien   String?  @db.VarChar(255)
+  isDelete           Boolean  @default(false)
+
+  hopDong            HopDong  @relation(fields: [hopDongId], references: [hopDongId], onDelete: Cascade)
+  nguoithue          NguoiThue @relation(fields: [idnt], references: [idnt], onDelete: Cascade)
+
+  @@unique([hopDongId, idnt])
+  @@index([idnt], map: "IDNT")
+  @@map("hopdong_nguoithue")
 }
 
 model PhieuSuCo {

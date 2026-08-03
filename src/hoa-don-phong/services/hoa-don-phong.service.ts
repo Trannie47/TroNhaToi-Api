@@ -150,10 +150,14 @@ export class HoaDonPhongService {
           { trangThai: 0 },
         ], //quét những ai đang có hợp đồng hiệu lực or sắp hiệu lực mà vẫn đang nằm trong tháng đó
       },
-      select: { idnt: true },
+     include: {
+        hopDongNguoiThue: {
+          where: { isDelete: false }
+        }
+      }
     });
 
-    const dsNt = Array.from(new Set(activeContracts.map((c) => c.idnt)));
+    const dsNt = Array.from(new Set(activeContracts.flatMap((c) => c.hopDongNguoiThue?.map((tv) => tv.idnt) || [])));
 
     // Nếu phòng không có ai đang ở, trả về danh sách hóa đơn phòng trống luôn
     if (dsNt.length === 0) {
@@ -174,7 +178,12 @@ export class HoaDonPhongService {
       where: {
         phongId: phongId,
         isDelete: false,
-        idnt: { in: dsNt }, // Chỉ lấy của người đang ở
+        hopDongNguoiThue: {
+          some: {
+            idnt: { in: dsNt },
+            isDelete: false,
+          },
+        }, // Chỉ lấy của người đang ở
         ngayKy: { lte: ngayCuoiThang },
         OR: [
           { trangThai: 1 },
@@ -183,7 +192,12 @@ export class HoaDonPhongService {
         ],
       },
       include: {
-        nguoithue: true,
+        hopDongNguoiThue: {
+          where: { isDelete: false },
+          include: {
+            nguoithue: true,
+          },
+        },
         hoaDonPhong: {
           where: { thangNam: thangNam, isDelete: false },
         },
@@ -196,12 +210,15 @@ export class HoaDonPhongService {
       include: { nguoithue: true },
     });
 
-    const tenantContractsMap = new Map<number, typeof danhSachHopDong>();
-    for (const hd of danhSachHopDong) {
-      if (!tenantContractsMap.has(hd.idnt)) {
-        tenantContractsMap.set(hd.idnt, []);
+    const tenantContractsMap = new Map<number, any[]>();
+    for (const hd of activeContracts) {
+      const thanhViens = hd.hopDongNguoiThue || [];
+      for (const tv of thanhViens) {
+        if (!tenantContractsMap.has(tv.idnt)) {
+          tenantContractsMap.set(tv.idnt, []);
+        }
+        tenantContractsMap.get(tv.idnt)!.push(hd);
       }
-      tenantContractsMap.get(hd.idnt)!.push(hd);
     }
 
     const danhSachHopDongCalculated: any[] = [];
@@ -658,7 +675,12 @@ export class HoaDonPhongService {
       include: {
         hopDong: {
           include: {
-            nguoithue: true,
+            hopDongNguoiThue: {
+              where: { isDelete: false },
+              include: {
+                nguoithue: true,
+              },
+            },
             phong: true,
           },
         },
@@ -678,8 +700,8 @@ export class HoaDonPhongService {
       return {
         maHoaDon: hd.maHoaDon,
         hopDongId: hd.hopDongId,
-        hoTenKhach: hd.hopDong?.nguoithue?.hoTen ?? 'Khách thuê',
-        sdtKhach: hd.hopDong?.nguoithue?.sdt ?? '',
+       hoTenKhach: hd.hopDong?.hopDongNguoiThue?.[0]?.nguoithue?.hoTen ?? 'Khách thuê',
+      sdtKhach: hd.hopDong?.hopDongNguoiThue?.[0]?.nguoithue?.sdt ?? '',
         tenPhong: hd.hopDong?.phong?.tenPhong ?? '',
         thangNam: hd.thangNam,
         ngayLap: hd.ngayLap,
@@ -794,7 +816,12 @@ export class HoaDonPhongService {
       include: {
         hopDong: {
           include: {
-            nguoithue: true,
+           hopDongNguoiThue: {
+            where: { isDelete: false },
+            include: {
+              nguoithue: true,
+            },
+          },
             phong: true,
           },
         },

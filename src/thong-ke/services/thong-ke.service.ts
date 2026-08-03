@@ -808,14 +808,14 @@ export class ThongKeService {
           thangNam: true,
           trangThai: true,
           hopDong: {
-            select: {
-              nguoithue: {
-                select: {
-                  idnt: true,
-                  hoTen: true,
-                },
-              },
-            },
+            // select: {
+            //   nguoithue: {
+            //     select: {
+            //       idnt: true,
+            //       hoTen: true,
+            //     },
+            //   },
+            // },
           },
           phieuThuHangThang: {
             where: { isDelete: false },
@@ -893,11 +893,11 @@ export class ThongKeService {
       const phieuThu = invoice.phieuThuHangThang;
       const collected = phieuThu ? this.toNumber(phieuThu.soTien) : 0;
 
-      addDebt(
-        invoice.hopDong?.nguoithue,
-        this.toNumber(invoice.soTien),
-        collected,
-      );
+      // addDebt(
+      //  // invoice.hopDong?.nguoithue,
+      //   this.toNumber(invoice.soTien),
+      //   collected,
+      // );
     }
 
     for (const invoice of groceryInvoices) {
@@ -1067,13 +1067,13 @@ export class ThongKeService {
           },
         },
 
-        nguoithue: {
-          select: {
-            idnt: true,
-            hoTen: true,
-            sdt: true,
-          },
-        },
+        // nguoithue: {
+        //   select: {
+        //     idnt: true,
+        //     hoTen: true,
+        //     sdt: true,
+        //   },
+        // },
       },
 
       orderBy: {

@@ -47,8 +47,11 @@ export class PhongService {
       include: {
         HopDong: {
           where: { isDelete: false, trangThai: { not: 2 } },
-          include: {
-            nguoithue: true,
+                    include: {
+            hopDongNguoiThue: {
+              where: { isDelete: false },
+              include: { nguoithue: true },
+            },
           }
         }
       }
@@ -56,8 +59,11 @@ export class PhongService {
     if (!phongWithHopDong || !phongWithHopDong.HopDong) {
       return [];
     }
-    const dsNguoiThue = phongWithHopDong.HopDong.map(hd => hd.nguoithue).filter(nt => nt !== null);
-    return dsNguoiThue;
+    return phongWithHopDong.HopDong.flatMap((hd) =>
+      hd.hopDongNguoiThue
+        .filter((member) => !member.nguoithue.isDelete)
+        .map((member) => member.nguoithue),
+    );
   }
   // Lấy thoong tin chi tiết phòng theo ID
   async findOne(id: number) {
