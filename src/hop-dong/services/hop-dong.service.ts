@@ -121,7 +121,9 @@ export class HopDongService {
     dto: CreateHopDongDto,
     listUrlImage: string[],
   ) {
-    const thanhVien = dto.danhSachThanhVien ?? [];
+        const thanhVien = this.chuanHoaDanhSachThanhVien(
+      dto.danhSachThanhVien ?? [],
+    );
 
     if (thanhVien.length === 0) {
       throw new BadRequestException('Hợp đồng phải có ít nhất một người thuê.');
@@ -148,19 +150,10 @@ export class HopDongService {
       throw new BadRequestException('Không tìm thấy phòng thuê hợp lệ để lập hợp đồng.');
     }
 
-    const ngayKy = dto.ngayKy ? new Date(dto.ngayKy) : new Date();
-    if (Number.isNaN(ngayKy.getTime())) {
-      throw new BadRequestException('Ngày ký hợp đồng không hợp lệ.');
-    }
-    ngayKy.setHours(0, 0, 0, 0);
+        const ngayKy = this.parseNgayTheoLich(dto.ngayKy);
+    const ngayHetHan = this.parseNgayTheoLich(dto.ngayHetHan);
 
-    const ngayHetHan = dto.ngayHetHan ? new Date(dto.ngayHetHan) : new Date();
-    if (Number.isNaN(ngayHetHan.getTime())) {
-      throw new BadRequestException('Ngày hết hạn hợp đồng không hợp lệ.');
-    }
-
-    const homNay = new Date();
-    homNay.setHours(0, 0, 0, 0);
+        const homNay = this.ngayHomNayTheoLich();
     const trangThaiHopDong = ngayKy <= homNay ? 1 : 0;
 
     const nguoiThues = await prisma.nguoiThue.findMany({
@@ -333,8 +326,275 @@ export class HopDongService {
       );
     }
   }
-  //Update hợp đồng(update nhưng thực chất là set trạng thái hợp đồng cũ thành hết hiệu lực và tạo mới hợp đồng với thông tin mới)
-  async update(id: string, dto: UpdateHopDongDto,listUrlImage: string[]) {
+ async update(id: string, dto: UpdateHopDongDto, listUrlImage: string[]) {
+    const existingHopDong = await this.prisma.hopDong.findFirst({
+      where: { hopDongId: id, isDelete: false },
+    });
+
+    if (!existingHopDong) {
+      throw new NotFoundException(`Hợp đồng với id ${id} không tồn tại`);
+    }
+
+    if (existingHopDong.trangThai === 2) {
+      throw new BadRequestException('Hợp đồng đã kết thúc, không thể cập nhật.');
+    }
+
+    if (dto.phongId !== undefined && dto.phongId !== existingHopDong.phongId) {
+      throw new BadRequestException(
+        'Không thể chuyển hợp đồng sang phòng khác. Vui lòng tạo hợp đồng mới.',
+      );
+    }
+
+    const phongId = existingHopDong.phongId;
+    if (phongId === null || phongId === undefined) {
+      throw new BadRequestException('Hợp đồng chưa được gắn với phòng.');
+    }
+    let danhSachDauVao = dto.danhSachThanhVien;
+
+    
+    if (!danhSachDauVao || (Array.isArray(danhSachDauVao) && danhSachDauVao.length === 0)) {
+      danhSachDauVao = await this.prisma.hopDongNguoiThue.findMany({
+        where: { hopDongId: id, isDelete: false },
+        select: {
+          idnt: true,
+          laDaiDien: true,
+          quanHeVoiDaiDien: true,
+        },
+      });
+    }
+
+    const thanhVienMoi = this.chuanHoaDanhSachThanhVien(danhSachDauVao);
+
+    if (thanhVienMoi.length === 0) {
+      throw new BadRequestException('Hợp đồng phải có ít nhất một thành viên.');
+    }
+
+    const danhSachIdnt = thanhVienMoi.map((member) => member.idnt);
+    if (new Set(danhSachIdnt).size !== danhSachIdnt.length) {
+      throw new BadRequestException('Danh sách thành viên không được trùng người thuê.');
+    }
+
+    const daiDien = thanhVienMoi.filter((member) => member.laDaiDien);
+    if (daiDien.length !== 1) {
+      throw new BadRequestException('Hợp đồng phải có đúng một người đại diện.');
+    }
+
+        const ngayKy = dto.ngayKy
+      ? this.parseNgayTheoLich(dto.ngayKy)
+      : this.parseNgayTheoLich(existingHopDong.ngayKy);
+    const ngayHetHan = dto.ngayHetHan
+      ? this.parseNgayTheoLich(dto.ngayHetHan)
+      : this.parseNgayTheoLich(existingHopDong.ngayHetHan);
+
+    if (ngayHetHan < ngayKy) {
+      throw new BadRequestException('Ngày hết hạn phải lớn hơn hoặc bằng ngày ký.');
+    }
+
+    const nguoiThues = await this.prisma.nguoiThue.findMany({
+      where: {
+        idnt: { in: danhSachIdnt },
+        isDelete: false,
+      },
+      select: { idnt: true, ngaySinh: true },
+    });
+
+    if (nguoiThues.length !== danhSachIdnt.length) {
+      throw new BadRequestException('Có thành viên không tồn tại hoặc đã bị xóa.');
+    }
+
+    const nguoiDaiDien = nguoiThues.find((item) => item.idnt === daiDien[0].idnt);
+    if (!nguoiDaiDien?.ngaySinh) {
+      throw new BadRequestException(
+        'Người đại diện phải có ngày sinh để kiểm tra đủ 18 tuổi.',
+      );
+    }
+
+    if (this.tinhTuoi(nguoiDaiDien.ngaySinh, ngayKy) < 18) {
+      throw new BadRequestException('Người đại diện hợp đồng phải đủ 18 tuổi.');
+    }
+
+    return this.prisma.$transaction(async (prisma) => {
+      // Thành viên ở cùng không được thuộc hợp đồng hoạt động khác.
+      // Riêng người đại diện được phép đứng tên nhiều hợp đồng.
+      const idntThanhVien = danhSachIdnt.filter(
+        (idnt) => idnt !== daiDien[0].idnt,
+      );
+
+      if (idntThanhVien.length > 0) {
+        const thanhVienDaCoHopDong = await prisma.hopDongNguoiThue.findMany({
+          where: {
+            idnt: { in: idntThanhVien },
+            hopDongId: { not: id },
+            isDelete: false,
+            hopDong: {
+              isDelete: false,
+              trangThai: { in: [0, 1] },
+            },
+          },
+          select: { idnt: true },
+        });
+
+        if (thanhVienDaCoHopDong.length > 0) {
+          throw new BadRequestException(
+            `Thành viên đã thuộc hợp đồng đang hoạt động: ${thanhVienDaCoHopDong
+              .map((member) => member.idnt)
+              .join(', ')}`,
+          );
+        }
+      }
+
+      const phong = await prisma.phong.findUnique({
+        where: { phongId },
+        include: { loaiPhong: true },
+      });
+      const soNguoiToiDa = phong?.loaiPhong?.soNguoiToiDa;
+      if (soNguoiToiDa === null || soNguoiToiDa === undefined) {
+        throw new BadRequestException('Loại phòng chưa cấu hình số người tối đa.');
+      }
+
+      const hopDongKhacTrongPhong = await prisma.hopDong.findMany({
+        where: {
+          phongId,
+          hopDongId: { not: id },
+          isDelete: false,
+          trangThai: { in: [0, 1] },
+        },
+        include: {
+          hopDongNguoiThue: {
+            where: { isDelete: false },
+            select: { idnt: true },
+          },
+        },
+      });
+
+      const idntTrongPhong = new Set<number>();
+      for (const hopDong of hopDongKhacTrongPhong) {
+        for (const member of hopDong.hopDongNguoiThue) {
+          idntTrongPhong.add(member.idnt);
+        }
+      }
+      for (const idnt of danhSachIdnt) {
+        idntTrongPhong.add(idnt);
+      }
+
+      if (idntTrongPhong.size > soNguoiToiDa) {
+        throw new BadRequestException(
+          `Phòng chỉ chứa tối đa ${soNguoiToiDa} người.`,
+        );
+      }
+
+      const tienCocMoi = dto.tienCoc ?? existingHopDong.tienCoc ?? 0;
+      const giaPhongMoi =
+        dto.giaPhongThucTe ?? existingHopDong.giaPhongThucTe ?? 0;
+      const thayDoiGia =
+        Number(tienCocMoi) !== Number(existingHopDong.tienCoc ?? 0) ||
+        Number(giaPhongMoi) !== Number(existingHopDong.giaPhongThucTe ?? 0);
+
+            const anhHopDongMoi = listUrlImage.join(',');
+      const anhHopDongCu = existingHopDong.anhHopDong ?? '';
+      const anhHopDong = anhHopDongMoi
+        ? [anhHopDongCu, anhHopDongMoi].filter(Boolean).join(',')
+        : anhHopDongCu;
+
+      let hopDongIdMoi = id;
+      let hopDongKetQua;
+
+      if (!thayDoiGia) {
+        // LUỒNG 1: cập nhật tại chỗ, giữ nguyên hopDongId và lịch sử version.
+        hopDongKetQua = await prisma.hopDong.update({
+          where: { hopDongId: id },
+          data: {
+            phongId,
+            ngayKy,
+            ngayHetHan,
+            tienCoc: tienCocMoi,
+            giaPhongThucTe: giaPhongMoi,
+            ghiChu: dto.ghiChu ?? existingHopDong.ghiChu,
+            anhHopDong,
+            trangThai: existingHopDong.trangThai,
+          },
+        });
+
+        await prisma.hopDongNguoiThue.deleteMany({
+          where: { hopDongId: id },
+        });
+      } else {
+        // LUỒNG 2: kết thúc version cũ, giữ nguyên liên kết thành viên cũ.
+        const ngayKetThucCu = new Date(ngayKy);
+        ngayKetThucCu.setDate(ngayKetThucCu.getDate() - 1);
+
+        await prisma.hopDong.update({
+          where: { hopDongId: id },
+          data: {
+            trangThai: 2,
+            ngayHetHan: ngayKetThucCu,
+          },
+        });
+
+        const countHopDongCuaPhong = await prisma.hopDong.count({
+          where: { phongId },
+        });
+        const nam = ngayKy.getFullYear();
+        const thang = String(ngayKy.getMonth() + 1).padStart(2, '0');
+        hopDongIdMoi = `${nam}${thang}-${phongId}-${countHopDongCuaPhong + 1}`;
+
+        hopDongKetQua = await prisma.hopDong.create({
+          data: {
+            hopDongId: hopDongIdMoi,
+            phongId,
+            ngayKy,
+            ngayHetHan,
+            tienCoc: tienCocMoi,
+            giaPhongThucTe: giaPhongMoi,
+            trangThai: 1,
+            ghiChu: dto.ghiChu ?? existingHopDong.ghiChu,
+            anhHopDong,
+          },
+        });
+      }
+
+      await prisma.hopDongNguoiThue.createMany({
+        data: thanhVienMoi.map((member) => ({
+          hopDongId: hopDongIdMoi,
+          idnt: member.idnt,
+          laDaiDien: member.laDaiDien,
+          quanHeVoiDaiDien: member.quanHeVoiDaiDien ?? null,
+          isDelete: false,
+        })),
+      });
+
+      await prisma.phong.update({
+        where: { phongId },
+        data: { trangThai: 1 },
+      });
+
+      await prisma.nguoiThue.updateMany({
+        where: { idnt: { in: danhSachIdnt } },
+        data: { trangThai: 1 },
+      });
+
+      await this.thongKeSnapshotService.invalidateAll(prisma);
+
+      return {
+        success: true,
+        message: thayDoiGia
+          ? 'Cập nhật giá thành công, đã tạo phiên bản hợp đồng mới.'
+          : 'Cập nhật hợp đồng thành công.',
+        data: await prisma.hopDong.findUnique({
+          where: { hopDongId: hopDongIdMoi },
+          include: {
+            hopDongNguoiThue: {
+              where: { isDelete: false },
+              include: { nguoithue: true },
+            },
+          },
+        }),
+      };
+    });
+  }
+
+  // Luồng cũ giữ lại để đối chiếu trong giai đoạn chuyển đổi.
+  private async updateLegacy(id: string, dto: UpdateHopDongDto,listUrlImage: string[]) {
     const existingHopDong = await this.prisma.hopDong.findFirst({
       where: { hopDongId: id, isDelete: false },
     });
@@ -841,6 +1101,104 @@ if (existingHopDong.trangThai === 2) {
     }catch(e){
         console.error('Lỗi khi chạy cron job kích hoạt hợp đồng:', e);
     }
+  }
+
+  
+    private tinhTuoi(ngaySinh: Date, mocTinhTuoi: Date): number {
+      let tuoi = mocTinhTuoi.getUTCFullYear() - ngaySinh.getUTCFullYear();
+      const chuaDenSinhNhat =
+        mocTinhTuoi.getUTCMonth() < ngaySinh.getUTCMonth() ||
+        (mocTinhTuoi.getUTCMonth() === ngaySinh.getUTCMonth() &&
+          mocTinhTuoi.getUTCDate() < ngaySinh.getUTCDate());
+
+      return chuaDenSinhNhat ? tuoi - 1 : tuoi;
+    }
+
+    private parseNgayTheoLich(value?: string | Date | null): Date {
+      if (!value) {
+        const now = new Date();
+        return new Date(Date.UTC(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+        ));
+      }
+
+      if (value instanceof Date) {
+        return new Date(Date.UTC(
+          value.getUTCFullYear(),
+          value.getUTCMonth(),
+          value.getUTCDate(),
+        ));
+      }
+
+      const ngay = value.split('T')[0].split(' ')[0];
+      const parts = ngay.split('-').map(Number);
+      if (
+        parts.length !== 3 ||
+        !parts.every((part) => Number.isInteger(part))
+      ) {
+        throw new BadRequestException('Ngày hợp đồng không hợp lệ.');
+      }
+
+      const [year, month, day] = parts;
+      const result = new Date(Date.UTC(year, month - 1, day));
+      if (
+        result.getUTCFullYear() !== year ||
+        result.getUTCMonth() !== month - 1 ||
+        result.getUTCDate() !== day
+      ) {
+        throw new BadRequestException('Ngày hợp đồng không hợp lệ.');
+      }
+
+      return result;
+    }
+
+    private ngayHomNayTheoLich(): Date {
+      return this.parseNgayTheoLich();
+    }
+
+    private chuanHoaDanhSachThanhVien(danhSachInput: unknown) {
+    let danhSach: unknown = danhSachInput;
+
+    if (typeof danhSach === 'string') {
+      try {
+        danhSach = JSON.parse(danhSach);
+      } catch {
+        throw new BadRequestException('Danh sách thành viên không đúng định dạng JSON.');
+      }
+    }
+
+    if (!Array.isArray(danhSach)) {
+      throw new BadRequestException('Danh sách thành viên phải là một mảng.');
+    }
+
+    return danhSach.map((item: any) => {
+      if (!item || typeof item !== 'object') {
+        throw new BadRequestException('Một thành viên trong danh sách không hợp lệ.');
+      }
+
+      const idnt = Number(item.idnt ?? item.idNT ?? item.IDNT);
+      if (!Number.isInteger(idnt) || idnt <= 0) {
+        throw new BadRequestException(
+          'ID người thuê trong danh sách không hợp lệ.',
+        );
+      }
+
+      const giaTriDaiDien = item.laDaiDien;
+      const laDaiDien =
+        giaTriDaiDien === true ||
+        giaTriDaiDien === 1 ||
+        giaTriDaiDien === '1' ||
+        (typeof giaTriDaiDien === 'string' &&
+          giaTriDaiDien.trim().toLowerCase() === 'true');
+
+      return {
+        ...item,
+        idnt,
+        laDaiDien,
+      };
+    });
   }
 
  //--------------------------------------------------------------------------------
