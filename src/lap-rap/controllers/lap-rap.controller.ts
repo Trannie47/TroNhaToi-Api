@@ -39,6 +39,30 @@ export class LapRapController {
     return this.lapRapService.search(dto);
   }
 
+  @Get('find-by-phong-thiet-bi')
+  @ApiOperation({
+    summary: 'Lấy danh sách lắp ráp theo phòng và thiết bị',
+  })
+  @ApiQuery({
+    name: 'phongId',
+    required: false,
+    description: 'ID phòng',
+  })
+  @ApiQuery({
+    name: 'thietBiId',
+    required: false,
+    description: 'ID thiết bị',
+  })
+  findByPhongVaThietBi(
+    @Query('phongId') phongId?: string,
+    @Query('thietBiId') thietBiId?: string,
+  ) {
+    return this.lapRapService.findByPhongVaThietBi(
+      phongId ? Number(phongId) : undefined,
+      thietBiId ? Number(thietBiId) : undefined,
+    );
+  }
+
   @Get('load-balance')
   @ApiOperation({ summary: 'Lấy 15 phần tử (cuộn tải dần theo id)' })
   @ApiQuery({ name: 'id', required: false, description: 'ID cuối cùng đã tải, bỏ trống để lấy 15 phần tử đầu' })
@@ -64,4 +88,6 @@ export class LapRapController {
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.lapRapService.remove(id);
   }
+
+
 }

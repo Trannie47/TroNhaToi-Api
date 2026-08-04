@@ -165,4 +165,60 @@ export class LapRapService {
         : {}),
     });
   }
+
+  async findByPhongVaThietBi(phongId?: number, thietBiId?: number) {
+    const where: any = {
+      isDelete: false,
+    };
+
+    if (phongId !== undefined) {
+      where.phongId = phongId;
+    }
+
+    if (thietBiId !== undefined) {
+      where.thietBiId = thietBiId;
+    }
+
+    const dsLapRap = await this.prisma.lapRap.findMany({
+      where,
+      include: {
+        phong: true,
+        thietbi: true,
+        suachua: {
+          where: { isDelete: false },
+          include: { hoadonsuachua: true },
+          orderBy: { ngaySuaChua: 'desc' },
+        },
+      },
+      orderBy: {
+        id: 'desc',
+      },
+    });
+
+    return dsLapRap.map((lr) => ({
+      ...lr,
+      trangThai: this.tinhTrangThaiLapRap(lr.suachua),
+    }));
+  }
+
+  private tinhTrangThaiLapRap(
+    dsSuaChua: Array<{
+      hoadonsuachua?: { isDelete: boolean; trangThai: number } | null;
+    }>,
+  ): number {
+    for (const sc of dsSuaChua) {
+      const hoaDon =
+        sc.hoadonsuachua && !sc.hoadonsuachua.isDelete ? sc.hoadonsuachua : null;
+
+      if (hoaDon?.trangThai === 3) {
+        return 2; // hỏng
+      }
+      if (!hoaDon || hoaDon.trangThai === 0) {
+        return 1; // đang sửa
+      }
+      // trangThai === 1 hoặc 2: coi như đã sửa xong
+    }
+
+    return 0; // bình thường
+  }
 }
