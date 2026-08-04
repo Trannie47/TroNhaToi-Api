@@ -77,10 +77,13 @@ export class NguoiThueService {
 
   // Danh sách người có thể thêm là thành viên ở cùng.
   // Không giới hạn tuổi, nhưng không hiển thị người đang thuộc một hợp đồng hoạt động khác.
-  async getNguoiThueAvailableForMember(excludeIdnt?: number) {
+  // excludeHopDongId: khi đang sửa 1 hợp đồng, bỏ qua ràng buộc từ chính hợp đồng đó để
+  // các thành viên hiện tại của nó không bị loại nhầm khỏi danh sách khả dụng.
+  async getNguoiThueAvailableForMember(excludeIdnt?: number, excludeHopDongId?: string) {
     const thanhVienDangHoatDong = await this.prisma.hopDongNguoiThue.findMany({
       where: {
         isDelete: false,
+        ...(excludeHopDongId ? { hopDongId: { not: excludeHopDongId } } : {}),
         hopDong: {
           isDelete: false,
           trangThai: { in: [0, 1] },
