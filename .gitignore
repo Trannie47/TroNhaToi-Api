@@ -9,6 +9,7 @@
 .env.development
 .env.local
 .tsbuildinfo
+tsconfig.tsbuildinfogit
 
 # Testing
 /coverage
