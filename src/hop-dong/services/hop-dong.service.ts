@@ -490,6 +490,14 @@ export class HopDongService {
         Number(tienCocMoi) !== Number(existingHopDong.tienCoc ?? 0) ||
         Number(giaPhongMoi) !== Number(existingHopDong.giaPhongThucTe ?? 0);
 
+      const homNay = this.ngayHomNayTheoLich();
+      const ngayKyHienTai = this.parseNgayTheoLich(existingHopDong.ngayKy);
+      // Chỉ coi là "đã có thời gian hiệu lực với giá cũ" khi ngày ký hiện tại thực sự ở quá khứ.
+      // Nếu ngày ký = hôm nay (vừa tạo) hoặc còn ở tương lai (đang chờ hiệu lực) thì đổi giá/tiền cọc
+      // cũng không được tách phiên bản mới, tránh sinh hợp đồng cũ có ngày kết thúc đứng trước ngày ký.
+      const daHieuLucTuTruoc = ngayKyHienTai.getTime() < homNay.getTime();
+      const canTaoPhienBanMoiDoGia = thayDoiGia && daHieuLucTuTruoc;
+
             const anhHopDongMoi = listUrlImage.join(',');
       const anhHopDongCu = existingHopDong.anhHopDong ?? '';
       const anhHopDong = anhHopDongMoi
@@ -499,8 +507,7 @@ export class HopDongService {
       let hopDongIdMoi = id;
       let hopDongKetQua;
 
-      if (!thayDoiGia) {
-        // LUỒNG 1: cập nhật tại chỗ, giữ nguyên hopDongId và lịch sử version.
+      if (!canTaoPhienBanMoiDoGia) {
         hopDongKetQua = await prisma.hopDong.update({
           where: { hopDongId: id },
           data: {
@@ -519,9 +526,17 @@ export class HopDongService {
           where: { hopDongId: id },
         });
       } else {
-        // LUỒNG 2: kết thúc version cũ, giữ nguyên liên kết thành viên cũ.
-        const ngayKetThucCu = new Date(ngayKy);
+        // Ngày bắt đầu hợp đồng mới luôn là hôm nay (không lấy ngày ký cũ/dto) để ngày kết thúc
+        // hợp đồng cũ (hôm nay - 1) không bao giờ đứng trước ngày ký của chính hợp đồng cũ đó.
+        const ngayKyMoi = homNay;
+        const ngayKetThucCu = new Date(homNay);
         ngayKetThucCu.setDate(ngayKetThucCu.getDate() - 1);
+
+        if (ngayHetHan < ngayKyMoi) {
+          throw new BadRequestException(
+            'Ngày hết hạn phải lớn hơn hoặc bằng ngày bắt đầu của phiên bản hợp đồng mới (hôm nay).',
+          );
+        }
 
         await prisma.hopDong.update({
           where: { hopDongId: id },
@@ -534,15 +549,15 @@ export class HopDongService {
         const countHopDongCuaPhong = await prisma.hopDong.count({
           where: { phongId },
         });
-        const nam = ngayKy.getFullYear();
-        const thang = String(ngayKy.getMonth() + 1).padStart(2, '0');
+        const nam = ngayKyMoi.getFullYear();
+        const thang = String(ngayKyMoi.getMonth() + 1).padStart(2, '0');
         hopDongIdMoi = `${nam}${thang}-${phongId}-${countHopDongCuaPhong + 1}`;
 
         hopDongKetQua = await prisma.hopDong.create({
           data: {
             hopDongId: hopDongIdMoi,
             phongId,
-            ngayKy,
+            ngayKy: ngayKyMoi,
             ngayHetHan,
             tienCoc: tienCocMoi,
             giaPhongThucTe: giaPhongMoi,
