@@ -19,21 +19,30 @@ export class PhongService {
         loaiPhong: true,
         HopDong: {
           where: { isDelete: false, trangThai: { not: 2 } },
+          include: {
+            hopDongNguoiThue: {
+              where: { isDelete: false },
+              select: { idnt: true },
+            },
+          },
         }
       },
     });
     return dsPhong.map((p) => {
       const phong = p as any;
       let giahientai = 0;
+      let soNguoiHienTai = 0;
       const hdDangHieuLuc = phong.HopDong.filter((hd: any) => hd.trangThai === 1);
       if (hdDangHieuLuc && hdDangHieuLuc.length > 0) {
         giahientai = hdDangHieuLuc.reduce((sum, hd) => sum + Number(hd.giaPhongThucTe || 0), 0);
+        soNguoiHienTai = hdDangHieuLuc.reduce((sum: number, hd: any) => sum + hd.hopDongNguoiThue.length, 0);
       } else {
         giahientai = phong.loaiPhong?.giaTien || 0;
       }
       return {
         ...phong,
         giahientai,
+        soNguoiHienTai,
       }
     });
   }
