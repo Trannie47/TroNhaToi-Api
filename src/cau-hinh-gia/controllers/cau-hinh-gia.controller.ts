@@ -20,6 +20,6 @@ export class CauHinhGiaController {
   @Post()
   @ApiOperation({ summary: 'Cập nhật giá điện nước mới' })
   updateGia(@Body() dto: CreateCauHinhGiaDto) {
-    return this.cauHinhGiaService.create(dto);
+    return this.cauHinhGiaService.updateGia(dto);
   }
 }

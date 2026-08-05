@@ -23,7 +23,21 @@ export class CauHinhGiaService {
     return gia;
   }
 
-  async create(dto: CreateCauHinhGiaDto) {
+  async updateGia(dto: CreateCauHinhGiaDto) {
+    const hienTai = await this.prisma.cauHinhGia.findFirst({
+      orderBy: { id: 'desc' },
+    });
+
+    if (hienTai) {
+      return this.prisma.cauHinhGia.update({
+        where: { id: hienTai.id },
+        data: {
+          giaDien: dto.giaDien,
+          giaNuoc: dto.giaNuoc,
+        },
+      });
+    }
+
     return this.prisma.cauHinhGia.create({
       data: {
         giaDien: dto.giaDien,
