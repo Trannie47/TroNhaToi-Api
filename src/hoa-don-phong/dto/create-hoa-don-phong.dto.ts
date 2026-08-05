@@ -56,6 +56,26 @@ export class CreateHoaDonPhongDto {
   @IsNumber()
   chiSoNuocMoi?: number;
 
+  @ApiPropertyOptional({
+    description: 'Giá điện áp dụng ghi đè cho kỳ này (thay vì lấy từ CauHinhGia). Bỏ trống hoặc gửi giá trị không hợp lệ sẽ dùng giá hệ thống như cũ.',
+    example: 3500,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  giaDienApDung?: number;
+
+  @ApiPropertyOptional({
+    description: 'Giá nước áp dụng ghi đè cho kỳ này (thay vì lấy từ CauHinhGia). Bỏ trống hoặc gửi giá trị không hợp lệ sẽ dùng giá hệ thống như cũ.',
+    example: 15000,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  giaNuocApDung?: number;
+
   @ApiPropertyOptional({ description: 'Tiền dịch vụ phát sinh khác cho mỗi khách', example: 0 })
   @Type(() => Number)
   @IsOptional()

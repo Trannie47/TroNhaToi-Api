@@ -210,144 +210,134 @@ export class HoaDonPhongService {
       include: { nguoithue: true },
     });
 
-    const tenantContractsMap = new Map<number, any[]>();
-    for (const hd of activeContracts) {
-      const thanhViens = hd.hopDongNguoiThue || [];
-      for (const tv of thanhViens) {
-        if (!tenantContractsMap.has(tv.idnt)) {
-          tenantContractsMap.set(tv.idnt, []);
-        }
-        tenantContractsMap.get(tv.idnt)!.push(hd);
-      }
+    const layDaiDienIdnt = (hd: any): number | null =>
+      hd.hopDongNguoiThue?.find((tv: any) => tv.laDaiDien)?.idnt ?? null;
+
+
+    const tienThanTheoHopDongId = new Map<string, any>();
+    for (const n of danhSachHopDong) {
+      const daiDienN = layDaiDienIdnt(n);
+      if (daiDienN === null || !n.ngayKy) continue;
+
+      const tienThan = danhSachHopDong.find((p) => {
+        if (p.hopDongId === n.hopDongId || !p.ngayHetHan) return false;
+        if (layDaiDienIdnt(p) !== daiDienN) return false;
+
+        const ngayKyTiepTheo = new Date(p.ngayHetHan);
+        ngayKyTiepTheo.setDate(ngayKyTiepTheo.getDate() + 1);
+
+        return new Date(n.ngayKy).toDateString() === ngayKyTiepTheo.toDateString();
+      });
+
+      if (tienThan) tienThanTheoHopDongId.set(n.hopDongId, tienThan);
     }
+
+    
+    const dsIdLaTienThan = new Set(
+      Array.from(tienThanTheoHopDongId.values()).map((p) => p.hopDongId),
+    );
+    const dsHopDongCanLap = danhSachHopDong.filter((hd) => !dsIdLaTienThan.has(hd.hopDongId));
 
     const danhSachHopDongCalculated: any[] = [];
 
-    for (const [idnt, contracts] of tenantContractsMap.entries()) {
-      contracts.sort((a, b) => {
-        const dA = a.ngayKy ? new Date(a.ngayKy).getTime() : 0;
-        const dB = b.ngayKy ? new Date(b.ngayKy).getTime() : 0;
-        return dA - dB;
-      });
-
-      let totalTenantRent = 0;
-      const noteLines: string[] = [];
-
-      let targetHopDong =
-        contracts.find((c) => c.trangThai === 1 || c.trangThai === 0) ??
-        contracts[contracts.length - 1];
-
-      let isAlreadyBilled = false;
-      let existingInvoice: any = null;
-
-      for (let i = 0; i < contracts.length; i++) {
-        const hd = contracts[i];
-        const nextHd = i + 1 < contracts.length ? contracts[i + 1] : null;
-
-        const matchedInvoice = contracts[i].hoaDonPhong?.find(
-          (inv) => inv.thangNam === thangNam && !inv.isDelete,
-        );
-
-        let segmentAmount = 0;
-
-        if (matchedInvoice) {
-          isAlreadyBilled = true;
-          existingInvoice = matchedInvoice;
-
-          try {
-            const parsedSnap = JSON.parse(matchedInvoice.chiTietJson as string);
-            segmentAmount = Number(
-              parsedSnap.tongTienPhong ??
-              parsedSnap.danhSachKhachThue?.[0]?.calculatedAmount ??
-              0,
-            );
-          } catch (_) {
-            segmentAmount = Number(matchedInvoice.soTien ?? 0);
-          }
-          noteLines.push(`Đã lập hóa đơn cho kỳ ${thangNam}`);
-        } else {
-          const giaPhongGoc = Number(
-            hd.giaPhongThucTe ?? thongTinPhong.loaiPhong?.giaTien ?? 0,
-          );
-
-          const dKy = hd.ngayKy ? new Date(hd.ngayKy) : ngayDauThang;
-          const dHetHan = hd.ngayHetHan ? new Date(hd.ngayHetHan) : null;
-
-          let startDay = 1;
-          if (dKy.getFullYear() === namInt && dKy.getMonth() + 1 === thangInt) {
-            startDay = dKy.getDate();
-          }
-
-          let endDay = soNgayTrongThang;
-
-          if (nextHd) {
-            const dNextKy = nextHd.ngayKy ? new Date(nextHd.ngayKy) : null;
-            if (
-              dNextKy &&
-              dNextKy.getFullYear() === namInt &&
-              dNextKy.getMonth() + 1 === thangInt
-            ) {
-              endDay = dNextKy.getDate() - 1;
-            }
-          } else if (hd.trangThai === 2 && dHetHan) {
-            if (
-              dHetHan.getFullYear() === namInt &&
-              dHetHan.getMonth() + 1 === thangInt
-            ) {
-              endDay = dHetHan.getDate();
-            }
-          }
-
-          if (endDay >= startDay) {
-            const soNgayO = endDay - startDay + 1;
-
-            if (
-              startDay === 1 &&
-              endDay === soNgayTrongThang &&
-              contracts.length === 1
-            ) {
-              segmentAmount = giaPhongGoc;
-              noteLines.push(
-                `Ở trọn tháng ${thangNam} (${giaPhongGoc.toLocaleString('vi-VN')}đ)`,
-              );
-            } else {
-              segmentAmount = Math.round(
-                (soNgayO / soNgayTrongThang) * giaPhongGoc,
-              );
-              noteLines.push(
-                `Từ ${startDay}/${thangInt} - ${endDay}/${thangInt} (${hd.hopDongId}): ${soNgayO} ngày x ${giaPhongGoc.toLocaleString('vi-VN')}đ/${soNgayTrongThang}`,
-              );
-            }
-          }
-        }
-        totalTenantRent += segmentAmount;
+    for (const hopDongCanLap of dsHopDongCanLap) {
+      const chuoiHopDong: any[] = [hopDongCanLap];
+      let hopDongDangXet = hopDongCanLap;
+      while (tienThanTheoHopDongId.has(hopDongDangXet.hopDongId)) {
+        hopDongDangXet = tienThanTheoHopDongId.get(hopDongDangXet.hopDongId);
+        chuoiHopDong.unshift(hopDongDangXet);
       }
 
-      const listXe = danhSachPhuongTien
-        .filter((xe) => xe.idnt === idnt)
+      let tongTienPhong = 0;
+      const dsGhiChu: string[] = [];
+
+      for (const hd of chuoiHopDong) {
+        const giaPhongGoc = Number(
+          hd.giaPhongThucTe ?? thongTinPhong.loaiPhong?.giaTien ?? 0,
+        );
+
+        const dKy = hd.ngayKy ? new Date(hd.ngayKy) : ngayDauThang;
+        const dHetHan = hd.ngayHetHan ? new Date(hd.ngayHetHan) : ngayCuoiThang;
+
+        const ngayBatDau = dKy > ngayDauThang ? dKy.getDate() : 1;
+        const ngayKetThuc = dHetHan < ngayCuoiThang ? dHetHan.getDate() : soNgayTrongThang;
+
+        if (ngayKetThuc < ngayBatDau) continue;
+
+        const soNgayO = ngayKetThuc - ngayBatDau + 1;
+
+        if (chuoiHopDong.length === 1 && ngayBatDau === 1 && ngayKetThuc === soNgayTrongThang) {
+          tongTienPhong += giaPhongGoc;
+          dsGhiChu.push(
+            `Ở trọn tháng ${thangNam} (${giaPhongGoc.toLocaleString('vi-VN')}đ)`,
+          );
+        } else {
+          tongTienPhong += Math.round((soNgayO / soNgayTrongThang) * giaPhongGoc);
+          dsGhiChu.push(
+            `Từ ${ngayBatDau}/${thangInt} - ${ngayKetThuc}/${thangInt} (${hd.hopDongId}): ${soNgayO} ngày x ${giaPhongGoc.toLocaleString('vi-VN')}đ/${soNgayTrongThang}`,
+          );
+        }
+      }
+
+      // Tiền xe gom theo toàn bộ các thành viên hiện tại của hợp đồng cần lập
+      const thanhVienHienTai = hopDongCanLap.hopDongNguoiThue ?? [];
+      const idntThanhVienHienTai = thanhVienHienTai.map((tv: any) => tv.idnt);
+
+      const dsXeTinhTien = danhSachPhuongTien
+        .filter((xe) => idntThanhVienHienTai.includes(xe.idnt))
         .map((xe) => ({
           id: xe.ID,
           bienSo: xe.bienSo,
           hangXe: xe.hangXe ?? 'Xe máy',
-          chuXe: targetHopDong.nguoithue?.hoTen ?? 'Khách thuê',
+          chuXe: xe.nguoithue?.hoTen ?? 'Khách thuê',
           price: Number(xe.SoTien ?? 0),
         }));
 
-      const tongTienXe = listXe.reduce((sum, x) => sum + x.price, 0);
+      const tongTienXe = dsXeTinhTien.reduce((sum, x) => sum + x.price, 0);
+
+      const hoaDonDaLap = hopDongCanLap.hoaDonPhong?.find(
+        (inv: any) => inv.thangNam === thangNam && !inv.isDelete,
+      );
+
+      let tienPhongCuoiCung = tongTienPhong;
+      let isAlreadyBilled = false;
+      let existingInvoice: any = null;
+
+      if (hoaDonDaLap) {
+        isAlreadyBilled = true;
+        existingInvoice = hoaDonDaLap;
+
+        try {
+          const parsedSnap = JSON.parse(hoaDonDaLap.chiTietJson as string);
+          tienPhongCuoiCung = Number(
+            parsedSnap.tongTienPhong ??
+            parsedSnap.danhSachKhachThue?.[0]?.calculatedAmount ??
+            0,
+          );
+        } catch (_) {
+          tienPhongCuoiCung = Number(hoaDonDaLap.soTien ?? 0);
+        }
+        dsGhiChu.push(`Đã lập hóa đơn cho kỳ ${thangNam}`);
+      }
+
+      const daiDien = thanhVienHienTai.find((tv: any) => tv.laDaiDien);
 
       danhSachHopDongCalculated.push({
-        hopDongId: targetHopDong.hopDongId,
-        idnt: idnt,
-        hoTen: targetHopDong.nguoithue?.hoTen ?? 'Khách thuê',
-        sdt: targetHopDong.nguoithue?.sdt ?? '',
+        hopDongId: hopDongCanLap.hopDongId,
+        idnt: daiDien?.idnt ?? null,
+        hoTen: daiDien?.nguoithue?.hoTen ?? 'Khách thuê',
+        sdt: daiDien?.nguoithue?.sdt ?? '',
+        danhSachThanhVien: thanhVienHienTai.map(
+          (tv: any) => tv.nguoithue?.hoTen ?? 'Khách thuê',
+        ),
         giaPhongGoc: Number(
-          targetHopDong.giaPhongThucTe ?? thongTinPhong.loaiPhong?.giaTien ?? 0,
+          hopDongCanLap.giaPhongThucTe ?? thongTinPhong.loaiPhong?.giaTien ?? 0,
         ),
         soNgayO: soNgayTrongThang,
         soNgayTrongThang,
-        calculatedTienPhong: totalTenantRent,
-        noteFormula: noteLines.join('\n'),
-        danhSachXe: listXe,
+        calculatedTienPhong: tienPhongCuoiCung,
+        noteFormula: dsGhiChu.join('\n'),
+        danhSachXe: dsXeTinhTien,
         tongTienXe,
         isAlreadyBilled,
         existingInvoice: existingInvoice
@@ -472,9 +462,18 @@ export class HoaDonPhongService {
         const giaDienSystem = cauHinhGiaHienTai?.giaDien ?? 3500;
         const giaNuocSystem = cauHinhGiaHienTai?.giaNuoc ?? 15000;
 
+        const layGiaHopLe = (value: unknown): number | undefined =>
+          typeof value === 'number' && Number.isFinite(value) && value >= 0
+            ? value
+            : undefined;
+        const giaDienGhiDe = layGiaHopLe(dto.giaDienApDung);
+        const giaNuocGhiDe = layGiaHopLe(dto.giaNuocApDung);
+
         if (banGhiChuaChot) {
-          const giaDienApDung = banGhiChuaChot.giaDienApDung ?? giaDienSystem;
-          const giaNuocApDung = banGhiChuaChot.giaNuocApDung ?? giaNuocSystem;
+          const giaDienApDung =
+            giaDienGhiDe ?? banGhiChuaChot.giaDienApDung ?? giaDienSystem;
+          const giaNuocApDung =
+            giaNuocGhiDe ?? banGhiChuaChot.giaNuocApDung ?? giaNuocSystem;
           await tx.dienNuoc.updateMany({
             where: {
               phongId: phongId,
@@ -486,7 +485,7 @@ export class HoaDonPhongService {
               chiSoDienMoi: moiDien,
               chiSoNuocCu: cuNuoc,
               chiSoNuocMoi: moiNuoc,
-              giaDienApDung: giaDienApDung, //Lưu giá điẹn nước ngay lúc đó
+              giaDienApDung: giaDienApDung, 
               giaNuocApDung: giaNuocApDung,
               anhDienMoi: danhSachUrlAnh.anhDienMoi ?? banGhiChuaChot.anhDienMoi,
               anhNuocMoi: danhSachUrlAnh.anhNuocMoi ?? banGhiChuaChot.anhNuocMoi,
@@ -494,8 +493,8 @@ export class HoaDonPhongService {
             },
           });
         } else {
-          const giaDienApDung = giaDienSystem;
-          const giaNuocApDung = giaNuocSystem;
+          const giaDienApDung = giaDienGhiDe ?? giaDienSystem;
+          const giaNuocApDung = giaNuocGhiDe ?? giaNuocSystem;
           const banGhiCuoi = await tx.dienNuoc.findFirst({
             where: { phongId: phongId, thangNam: thangNam },
             orderBy: { lanGhi: 'desc' },

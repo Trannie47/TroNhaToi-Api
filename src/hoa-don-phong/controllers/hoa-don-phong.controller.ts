@@ -84,6 +84,8 @@ export class HoaDonPhongController {
       chiSoDienMoi: body.chiSoDienMoi !== undefined ? Number(body.chiSoDienMoi) : undefined,
       chiSoNuocCu: body.chiSoNuocCu !== undefined ? Number(body.chiSoNuocCu) : undefined,
       chiSoNuocMoi: body.chiSoNuocMoi !== undefined ? Number(body.chiSoNuocMoi) : undefined,
+      giaDienApDung: body.giaDienApDung !== undefined ? Number(body.giaDienApDung) : undefined,
+      giaNuocApDung: body.giaNuocApDung !== undefined ? Number(body.giaNuocApDung) : undefined,
       tienDichVuKhac: body.tienDichVuKhac !== undefined ? Number(body.tienDichVuKhac) : 0,
       ghiChu: body.ghiChu,
       danhSachHopDongJson: body.danhSachHopDongJson, 
