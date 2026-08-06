@@ -12,9 +12,15 @@ export class PhieuSuCoService {
     private thongKeSnapshot: ThongKeSnapshotService,
   ) { }
 
-  async findAll() {
+  async findAll(phongId?: number) {
     const list = await this.prisma.phieuSuCo.findMany({
-      where: { isDelete: false },
+      where: {
+        isDelete: false,
+        ...(phongId != null
+          ? { phongId }
+          : {}),
+      },
+
       include: { phong: true },
       orderBy: { suCoId: 'desc' },
     });
@@ -32,6 +38,99 @@ export class PhieuSuCoService {
 
     return { success: true, data: item };
   }
+  // luân chuyển lấy thông tin sự cố 
+  async getLuanChuyen(id: number) {
+    const suCo = await this.prisma.phieuSuCo.findFirst({
+      where: {
+        suCoId: id,
+        isDelete: false,
+      },
+      include: {
+        phong: {
+          include: {
+            loaiPhong: true,
+          },
+        },
+      },
+    });
+
+    if (!suCo) {
+      throw new NotFoundException("Không tìm thấy sự cố");
+    }
+
+    // Lấy hợp đồng của phòng đó
+
+    const hopDong = await this.prisma.hopDong.findMany({
+      where: {
+        phongId: suCo.phongId,
+        isDelete: false,
+        trangThai: 1,
+      },
+      include: {
+        hopDongNguoiThue: {
+          where: {
+            isDelete: false,
+          },
+          include: {
+            nguoithue: true,
+          },
+        },
+      },
+    });
+
+    const phong = await this.prisma.phong.findMany({
+      where: {
+        isDelete: false,
+      },
+      include: {
+        loaiPhong: true,
+      },
+    });
+
+    const phongChuyen = await Promise.all(
+      phong
+        .filter((p) => p.phongId !== suCo.phongId)
+        .map(async (p) => {
+          const hopDongPhong = await this.prisma.hopDong.findFirst({
+            where: {
+              phongId: p.phongId,
+              isDelete: false,
+              trangThai: 1,
+            },
+            include: {
+              hopDongNguoiThue: {
+                where: {
+                  isDelete: false,
+                },
+              },
+            },
+          });
+
+          const soNguoiDangO =
+            hopDongPhong?.hopDongNguoiThue.length ?? 0;
+
+          const sucChua = p.loaiPhong?.soNguoiToiDa ?? 0;
+          return {
+            phongId: p.phongId,
+            tenPhong: p.tenPhong,
+            sucChua,
+            soNguoiDangO,
+            soChoTrong: sucChua - soNguoiDangO,
+            daCoHopDong: hopDongPhong != null,
+          };
+        }),
+    );
+
+    return {
+      success: true,
+      data: {
+        suCo,
+        hopDong,
+        phongChuyen,
+      },
+    };
+  }
+
 
   // Tạo phiếu sự cố mới (kèm chi tiết luân chuyển nếu có)
   async create(dto: CreatePhieuSuCoDto) {

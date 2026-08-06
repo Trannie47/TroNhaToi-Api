@@ -1,13 +1,15 @@
 import {
   Controller,
-  Get,
+ Get,
   Post,
   Body,
   Patch,
   Param,
   Delete,
   ParseIntPipe,
+  Query,
 } from '@nestjs/common';
+
 import { ApiTags } from '@nestjs/swagger';
 import { PhieuSuCoService } from '../services/phieu-su-co.service';
 import { CreatePhieuSuCoDto, UpdatePhieuSuCoDto } from '../dto/create-phieu-su-co.dto';
@@ -22,15 +24,32 @@ export class PhieuSuCoController {
     return this.service.create(dto);
   }
 
+  // @Get('findall')
+  // findAll() {
+  //   return this.service.findAll();
+  // }
+
   @Get('findall')
-  findAll() {
-    return this.service.findAll();
-  }
+findAll(
+  @Query('phongId') phongId?: string,
+) {
+  return this.service.findAll(
+    phongId ? Number(phongId) : undefined,
+  );
+}
+
 
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);
   }
+
+  @Get(':id/luan-chuyen')
+getLuanChuyen(
+  @Param('id', ParseIntPipe) id: number,
+) {
+  return this.service.getLuanChuyen(id);
+}
 
   @Patch(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdatePhieuSuCoDto) {
