@@ -97,5 +97,17 @@ export class NguoiThueController {
   getNguoiThueCongNoTapHoa() {
     return this.nguoiThueService.getNguoiThueCongNoTapHoa();
   }
+
+  @Get('luan-chuyen-trong-phong')
+  @ApiOperation({ summary: 'Lấy danh sách người thuê đang luân chuyển (chưa hoàn thành) theo phòng' })
+  @ApiQuery({
+    name: 'phongId',
+    required: true,
+    description: 'ID phòng cần lấy danh sách người thuê đang luân chuyển',
+    type: Number,
+  })
+  getNguoiThueLuanChuyenTrongPhong(@Query('phongId', ParseIntPipe) phongId: number) {
+    return this.nguoiThueService.getNguoiThueLuanChuyenTrongPhong(phongId);
+  }
   
 }

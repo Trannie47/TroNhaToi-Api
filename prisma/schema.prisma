@@ -125,7 +125,7 @@ model ChiTietLuanChuyen {
   hopDongId           String    @map("HopDongID") @db.VarChar(30)
   phongMoiId          Int?      @map("PhongMoiID")
   ngayLuanChuyen      DateTime? @db.Date
-  trangThaiLuanChuyen Int?      @default(0)   /// 0 = Chưa chuyển, 1 = Đang chuyển, 2 = Đã hoàn tất
+  trangThaiLuanChuyen Int?      @default(0)   /// 0 = Đã chuyển, 1 = hoàn thành
   ghiChu              String?   @db.Text
   isDelete            Boolean   @default(false)
 

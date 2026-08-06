@@ -31,7 +31,7 @@ export class ChiTietLuanChuyenController {
 
   @Get('find-by-su-co')
   findBySuCo(@Query('suCoId') suCoId: string) {
-    return this.service.findBySuCo(Number(suCoId));
+    return this.service.getLuanChuyenViewBySuCo(Number(suCoId));
   }
 
   @Get(':id')

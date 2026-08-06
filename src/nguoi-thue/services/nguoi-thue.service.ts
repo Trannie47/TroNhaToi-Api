@@ -18,7 +18,7 @@ export class NguoiThueService {
       orderBy: { idnt: 'desc' },
     });
   }
-    private tinhTuoi(ngaySinh: Date, mocTinhTuoi: Date): number {
+  private tinhTuoi(ngaySinh: Date, mocTinhTuoi: Date): number {
     let tuoi = mocTinhTuoi.getFullYear() - ngaySinh.getFullYear();
     const chuaDenSinhNhat =
       mocTinhTuoi.getMonth() < ngaySinh.getMonth() ||
@@ -125,9 +125,11 @@ export class NguoiThueService {
   async getNguoiThueAvailableForContract(ngayKy?: string) {
     return this.getNguoiThueAvailableForRepresentative(ngayKy);
   }
+
+
   async findRoom_NguoiThue(id: number) {
     const listHopDong = await this.prisma.hopDong.findMany({
-            where: {
+      where: {
         isDelete: false,
         trangThai: { not: 2 },
         hopDongNguoiThue: {
@@ -206,7 +208,7 @@ export class NguoiThueService {
     if (!tenant) {
       throw new NotFoundException(`Người thuê với id ${id} không tồn tại`);
     }
-        const hasHopDong = await this.prisma.hopDongNguoiThue.findFirst({
+    const hasHopDong = await this.prisma.hopDongNguoiThue.findFirst({
       where: {
         idnt: id,
         isDelete: false,
@@ -272,5 +274,44 @@ export class NguoiThueService {
         };
       })
       .filter((item) => item.tongCongNoTapHoa > 0);
+  }
+
+  async getNguoiThueLuanChuyenTrongPhong(phongId: number) {
+    const chiTietLuanChuyens = await this.prisma.chiTietLuanChuyen.findMany({
+      where: {
+        trangThaiLuanChuyen: 0,
+        isDelete: false,
+        hopDong: {
+          phongId: phongId,
+          isDelete: false,
+        },
+      },
+      include: {
+        hopDong: {
+          include: {
+            hopDongNguoiThue: {
+              where: { isDelete: false },
+              include: {
+                nguoithue: true,
+              },
+            },
+          },
+        },
+        phongMoi: true,
+      },
+    });
+
+    const result = chiTietLuanChuyens.flatMap((ctlc) =>
+      ctlc.hopDong.hopDongNguoiThue.map((hdnt) => ({
+        ...hdnt.nguoithue,
+        hopDongId: ctlc.hopDongId,
+        chiTietLuanChuyenID: ctlc.chiTietLuanChuyenID,
+        ngayLuanChuyen: ctlc.ngayLuanChuyen,
+        phongMoiId: ctlc.phongMoiId,
+        tenPhongMoi: ctlc.phongMoi?.tenPhong,
+      })),
+    );
+
+    return result;
   }
 }
