@@ -1077,6 +1077,45 @@ if (existingHopDong.trangThai === 2) {
       );
     }
 
+    //ktra xem phòng này còn hợp đồng nào khác không, nếu không còn thì phải kiểm tra công nợ điện nước trước khi kết thúc hợp đồng
+    const conHopDongKhacCuaPhongTruocKhiKetThuc = await this.prisma.hopDong.findFirst({
+      where: {
+        phongId,
+        hopDongId: { not: id },
+        isDelete: false,
+        trangThai: 1,
+      },
+    });
+
+    if (!conHopDongKhacCuaPhongTruocKhiKetThuc) {
+      const danhSachDienNuocDaChot = await this.prisma.dienNuoc.findMany({
+        where: { phongId, TrangThai: 1 },
+        include: { phieuThuDienNuoc: { where: { isDelete: false } } },
+      });
+
+      const cauHinhGia = await this.prisma.cauHinhGia.findFirst({
+        orderBy: { id: 'desc' },
+      });
+      const giaDienHeThong = cauHinhGia?.giaDien ?? 3500;
+      const giaNuocHeThong = cauHinhGia?.giaNuoc ?? 15000;
+
+      const coNoDienNuoc = danhSachDienNuocDaChot.some((dn) => {
+        const giaDien = dn.giaDienApDung ?? giaDienHeThong;
+        const giaNuoc = dn.giaNuocApDung ?? giaNuocHeThong;
+        const tienDien = (dn.chiSoDienMoi - dn.chiSoDienCu) * giaDien;
+        const tienNuoc = (dn.chiSoNuocMoi - dn.chiSoNuocCu) * giaNuoc;
+        const tongTien = tienDien + tienNuoc;
+        const daThu = Number(dn.phieuThuDienNuoc?.soTien ?? 0);
+        return tongTien - daThu > 0;
+      });
+
+      if (coNoDienNuoc) {
+        throw new BadRequestException(
+          'Phòng vẫn còn hóa đơn điện nước chưa thanh toán xong. Vui lòng thanh toán hết trước khi kết thúc hợp đồng!',
+        );
+      }
+    }
+
    const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
