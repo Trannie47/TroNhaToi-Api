@@ -78,11 +78,30 @@ export class HopDongNguoiThueService {
       throw new BadRequestException(`Không thể xóa người đại diện. Hãy đổi đại diện trước.`);
     }
 
-    const deleted = await this.prisma.hopDongNguoiThue.update({
-      where: { id: member.id },
-      data: { isDelete: true },
+    return await this.prisma.$transaction(async (tx) => {
+      const deleted = await tx.hopDongNguoiThue.update({
+        where: { id: member.id },
+        data: { isDelete: true },
+      });
+
+      // Nếu người này không còn hợp đồng đang hoạt động/chờ hiệu lực nào khác thì trả về "chưa thuê"
+      const conHopDongKhac = await tx.hopDongNguoiThue.findFirst({
+        where: {
+          idnt,
+          isDelete: false,
+          hopDong: { isDelete: false, trangThai: { in: [0, 1] } },
+        },
+      });
+
+      if (!conHopDongKhac) {
+        await tx.nguoiThue.update({
+          where: { idnt },
+          data: { trangThai: 0 },
+        });
+      }
+
+      return { success: true, message: `Đã xóa thành viên ${idnt} khỏi hợp đồng.`, data: deleted };
     });
-    return { success: true, message: `Đã xóa thành viên ${idnt} khỏi hợp đồng.`, data: deleted };
   }
 
  // Đổi người đại diện của hợp đồng

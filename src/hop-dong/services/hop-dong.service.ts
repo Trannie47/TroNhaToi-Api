@@ -414,6 +414,14 @@ export class HopDongService {
     }
 
     return this.prisma.$transaction(async (prisma) => {
+      // Ghi lại thành viên đang active trc khi sửa để biết ai bị gỡ ra sau khi cập nhật xong
+      const thanhVienTruocKhiSua = await prisma.hopDongNguoiThue.findMany({
+        where: { hopDongId: id, isDelete: false },
+        select: { idnt: true },
+      });
+      const idntTruocKhiSua = thanhVienTruocKhiSua.map((tv) => tv.idnt);
+      const idntBiGo = idntTruocKhiSua.filter((idnt) => !danhSachIdnt.includes(idnt));
+
       // Thành viên ở cùng không được thuộc hợp đồng hoạt động khác.
       // Riêng người đại diện được phép đứng tên nhiều hợp đồng.
       const idntThanhVien = danhSachIdnt.filter(
@@ -522,9 +530,31 @@ export class HopDongService {
           },
         });
 
-        await prisma.hopDongNguoiThue.deleteMany({
-          where: { hopDongId: id },
-        });
+        // set isDelte = true các thành viên bị gỡ
+        if (idntBiGo.length > 0) {
+          await prisma.hopDongNguoiThue.updateMany({
+            where: { hopDongId: id, idnt: { in: idntBiGo }, isDelete: false },
+            data: { isDelete: true },
+          });
+        }
+
+        for (const member of thanhVienMoi) {
+          await prisma.hopDongNguoiThue.upsert({
+            where: { hopDongId_idnt: { hopDongId: id, idnt: member.idnt } },
+            update: {
+              laDaiDien: member.laDaiDien,
+              quanHeVoiDaiDien: member.quanHeVoiDaiDien ?? null,
+              isDelete: false,
+            },
+            create: {
+              hopDongId: id,
+              idnt: member.idnt,
+              laDaiDien: member.laDaiDien,
+              quanHeVoiDaiDien: member.quanHeVoiDaiDien ?? null,
+              isDelete: false,
+            },
+          });
+        }
       } else {
         // Ngày bắt đầu hợp đồng mới luôn là hôm nay (không lấy ngày ký cũ/dto) để ngày kết thúc
         // hợp đồng cũ (hôm nay - 1) không bao giờ đứng trước ngày ký của chính hợp đồng cũ đó.
@@ -566,17 +596,17 @@ export class HopDongService {
             anhHopDong,
           },
         });
-      }
 
-      await prisma.hopDongNguoiThue.createMany({
-        data: thanhVienMoi.map((member) => ({
-          hopDongId: hopDongIdMoi,
-          idnt: member.idnt,
-          laDaiDien: member.laDaiDien,
-          quanHeVoiDaiDien: member.quanHeVoiDaiDien ?? null,
-          isDelete: false,
-        })),
-      });
+        await prisma.hopDongNguoiThue.createMany({
+          data: thanhVienMoi.map((member) => ({
+            hopDongId: hopDongIdMoi,
+            idnt: member.idnt,
+            laDaiDien: member.laDaiDien,
+            quanHeVoiDaiDien: member.quanHeVoiDaiDien ?? null,
+            isDelete: false,
+          })),
+        });
+      }
 
       await prisma.phong.update({
         where: { phongId },
@@ -587,6 +617,25 @@ export class HopDongService {
         where: { idnt: { in: danhSachIdnt } },
         data: { trangThai: 1 },
       });
+
+      // Người bị gỡ khỏi hợp đồng nếu không còn hợp đồng đang hoạt động/chờ hiệu lực nào khác
+      // thì trả trạng thái về "chưa thuê"
+      for (const idntDaGo of idntBiGo) {
+        const conHopDongKhac = await prisma.hopDongNguoiThue.findFirst({
+          where: {
+            idnt: idntDaGo,
+            isDelete: false,
+            hopDong: { isDelete: false, trangThai: { in: [0, 1] } },
+          },
+        });
+
+        if (!conHopDongKhac) {
+          await prisma.nguoiThue.update({
+            where: { idnt: idntDaGo },
+            data: { trangThai: 0 },
+          });
+        }
+      }
 
       await this.thongKeSnapshotService.invalidateAll(prisma);
 
