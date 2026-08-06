@@ -699,8 +699,8 @@ export class HoaDonPhongService {
       return {
         maHoaDon: hd.maHoaDon,
         hopDongId: hd.hopDongId,
-       hoTenKhach: hd.hopDong?.hopDongNguoiThue?.[0]?.nguoithue?.hoTen ?? 'Khách thuê',
-      sdtKhach: hd.hopDong?.hopDongNguoiThue?.[0]?.nguoithue?.sdt ?? '',
+       hoTenKhach: hd.hopDong?.hopDongNguoiThue?.find((tv) => tv.laDaiDien)?.nguoithue?.hoTen ?? 'Khách thuê',
+      sdtKhach: hd.hopDong?.hopDongNguoiThue?.find((tv) => tv.laDaiDien)?.nguoithue?.sdt ?? '',
         tenPhong: hd.hopDong?.phong?.tenPhong ?? '',
         thangNam: hd.thangNam,
         ngayLap: hd.ngayLap,
@@ -785,7 +785,7 @@ export class HoaDonPhongService {
           ghiChu: `Chốt chỉ số điện nước tháng ${thangNam} (Lần ${dn.lanGhi})`,
         };
 
-        resultList.unshift({
+        resultList.push({
           maHoaDon: maHDDN,
           hopDongId: '',
           hoTenKhach: `Cả phòng ${phongId} (Lần ${dn.lanGhi})`,
@@ -805,6 +805,13 @@ export class HoaDonPhongService {
         });
       }
     }
+
+    // Sắp xếp lại toàn bộ danh sách hóa đơn
+    resultList.sort((a, b) => {
+      const thoiGianA = a.ngayLap ? new Date(a.ngayLap).getTime() : 0;
+      const thoiGianB = b.ngayLap ? new Date(b.ngayLap).getTime() : 0;
+      return thoiGianB - thoiGianA;
+    });
 
     return resultList;
   }
