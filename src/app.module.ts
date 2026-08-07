@@ -26,7 +26,6 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { ThongKeModule } from './thong-ke/thong-ke.module';
 import { LichSuMuaThietBiModule } from './lich-su-mua-thiet-bi/lich-su-mua-thiet-bi.module';
 import { CauHinhGiaModule } from './cau-hinh-gia/cau-hinh-gia.module';
-import { CauHinhGiaXeModule } from './cau-hinh-gia-xe/cau-hinh-gia-xe.module';
 import { PhieuThuDienNuocModule } from './phieu-thu-dien-nuoc/phieu-thu-dien-nuoc.module';
 import { HopDongNguoiThueModule } from './hop-dong-nguoi-thue/hop-dong-nguoi-thue.module';
 import { PhieuSuCoModule } from './phieu-su-co/phieu-su-co.module';
@@ -61,7 +60,6 @@ import { ChiTietLuanChuyenModule } from './chi-tiet-luan-chuyen/chi-tiet-luan-ch
     ThongKeModule,
     LichSuMuaThietBiModule,
     CauHinhGiaModule,
-    CauHinhGiaXeModule,
     PhieuThuDienNuocModule,
     HopDongNguoiThueModule,
     PhieuSuCoModule,

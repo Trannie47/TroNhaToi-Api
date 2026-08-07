@@ -449,18 +449,11 @@ model CauHinhGia {
   id        Int      @id @default(autoincrement()) @map("id")
   giaDien   Float    @default(3500) @map("gia_dien")
   giaNuoc   Float    @default(15000) @map("gia_nuoc")
+  giaXeMay  Float?   @map("gia_xe_may") /// Giá gửi xe máy mặc định
+  giaXeHoi  Float?   @map("gia_xe_hoi") /// Giá gửi ô tô mặc định
+  giaXeDap  Float?   @map("gia_xe_dap") /// Giá gửi xe đạp mặc định
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("cauhinhgia")
-}
-
-model CauHinhGiaXe {
-  id         Int      @id @default(autoincrement())
-  loaiXe     Int      @unique @map("loai_xe") /// 0 = Xe máy, 1 = Ô tô, 2 = Xe đạp
-  tenLoaiXe  String?  @db.VarChar(50) @map("ten_loai_xe")
-  giaMacDinh Decimal  @db.Decimal(10, 2) @map("gia_mac_dinh")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-
-  @@map("cauhinhgiaxe")
 }
 
