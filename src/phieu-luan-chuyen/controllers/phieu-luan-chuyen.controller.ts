@@ -10,14 +10,14 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { ChiTietLuanChuyenService } from '../services/chi-tiet-luan-chuyen.service';
-import { CreateChiTietLuanChuyenDto } from '../dto/create-chi-tiet-luan-chuyen.dto';
-import { UpdateChiTietLuanChuyenDto } from '../dto/update-chi-tiet-luan-chuyen.dto';
+import { PhieuLuanChuyenService } from '../services/phieu-luan-chuyen.service';
+import { CreateChiTietLuanChuyenDto } from '../dto/create-phieu-luan-chuyen.dto';
+import { UpdateChiTietLuanChuyenDto } from '../dto/update-phieu-luan-chuyen.dto';
 
 @ApiTags('Chi Tiết Luân Chuyển')
 @Controller('chi-tiet-luan-chuyen')
-export class ChiTietLuanChuyenController {
-  constructor(private readonly service: ChiTietLuanChuyenService) { }
+export class PhieuLuanChuyenController {
+  constructor(private readonly service: PhieuLuanChuyenService) { }
 
   @Post()
   create(@Body() dto: CreateChiTietLuanChuyenDto) {
@@ -27,11 +27,6 @@ export class ChiTietLuanChuyenController {
   @Get('findall')
   findAll() {
     return this.service.findAll();
-  }
-
-  @Get('find-by-su-co')
-  findBySuCo(@Query('suCoId') suCoId: string) {
-    return this.service.getLuanChuyenViewBySuCo(Number(suCoId));
   }
 
   @Get(':id')

@@ -277,9 +277,9 @@ export class NguoiThueService {
   }
 
   async getNguoiThueLuanChuyenTrongPhong(phongId: number) {
-    const chiTietLuanChuyens = await this.prisma.chiTietLuanChuyen.findMany({
+    const phieuLuanChuyens = await this.prisma.phieuLuanChuyen.findMany({
       where: {
-        trangThaiLuanChuyen: 0,
+        denNgay: null, // phiếu chưa kết thúc luân chuyển (thay cho trangThaiLuanChuyen: 0 cũ)
         isDelete: false,
         hopDong: {
           phongId: phongId,
@@ -301,14 +301,15 @@ export class NguoiThueService {
       },
     });
 
-    const result = chiTietLuanChuyens.flatMap((ctlc) =>
-      ctlc.hopDong.hopDongNguoiThue.map((hdnt) => ({
+    const result = phieuLuanChuyens.flatMap((plc) =>
+      plc.hopDong.hopDongNguoiThue.map((hdnt) => ({
         ...hdnt.nguoithue,
-        hopDongId: ctlc.hopDongId,
-        chiTietLuanChuyenID: ctlc.chiTietLuanChuyenID,
-        ngayLuanChuyen: ctlc.ngayLuanChuyen,
-        phongMoiId: ctlc.phongMoiId,
-        tenPhongMoi: ctlc.phongMoi?.tenPhong,
+        hopDongId: plc.hopDongId,
+        chiTietLuanChuyenID: plc.chiTietLuanChuyenID,
+        tuNgay: plc.tuNgay,
+        denNgay: plc.denNgay,
+        phongMoiId: plc.phongMoiId,
+        tenPhongMoi: plc.phongMoi?.tenPhong,
       })),
     );
 

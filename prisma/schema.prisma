@@ -27,20 +27,19 @@ model LoaiPhong {
 }
 
 model Phong {
-  phongId            Int                  @id @default(autoincrement()) @map("PhongID")
-  tenPhong           String?              @db.VarChar(255)
-  trangThai          Int?                 @default(0)
-  moTa               String?              @db.Text
-  maLoaiPhong        Int?
-  isDelete           Boolean              @default(false)
-  dienNuoc           DienNuoc[]
-  loaiPhong          LoaiPhong?           @relation(fields: [maLoaiPhong], references: [maLoaiPhong], onDelete: NoAction, onUpdate: NoAction, map: "phong_ibfk_1")
-  HopDong            HopDong[]
-  LapRap             LapRap[]
-  NguoiLuuTruTamThoi NguoiLuuTruTamThoi[]
-  PhuongTien         PhuongTien[]
-  PhieuSuCo            PhieuSuCo[]
-  ChiTietLuanChuyenDen ChiTietLuanChuyen[]  @relation("PhongMoiLuanChuyen")
+  phongId              Int                  @id @default(autoincrement()) @map("PhongID")
+  tenPhong             String?              @db.VarChar(255)
+  trangThai            Int?                 @default(0)
+  moTa                 String?              @db.Text
+  maLoaiPhong          Int?
+  isDelete             Boolean              @default(false)
+  dienNuoc             DienNuoc[]
+  loaiPhong            LoaiPhong?           @relation(fields: [maLoaiPhong], references: [maLoaiPhong], onDelete: NoAction, onUpdate: NoAction, map: "phong_ibfk_1")
+  HopDong              HopDong[]
+  LapRap               LapRap[]
+  NguoiLuuTruTamThoi   NguoiLuuTruTamThoi[]
+  PhuongTien           PhuongTien[]
+  phieuLuanChuyenDen   PhieuLuanChuyen[]    @relation("PhongMoiLuanChuyen")
 
   @@index([maLoaiPhong], map: "maLoaiPhong")
   @@map("phong")
@@ -57,7 +56,7 @@ model NguoiThue {
   gioiTinh           Boolean              @default(true)
   trangThai          Int                  @default(0)     /// 0 = Chưa thuê (mới tạo), 1 = Đang thuê hoạt động, 2 = Đã dọn đi
   isDelete           Boolean              @default(false)
-    hoaDonTapHoa       HoaDonTapHoa[]
+  hoaDonTapHoa       HoaDonTapHoa[]
   hopDongNguoiThue   HopDongNguoiThue[]
   PhuongTien         PhuongTien[]
   NguoiLuuTruTamThoi NguoiLuuTruTamThoi[]
@@ -66,20 +65,20 @@ model NguoiThue {
 }
 
 model HopDong {
-  hopDongId      String        @id @map("HopDongID") @db.VarChar(30)
-  phongId        Int?          @map("PhongID")
-  ngayKy         DateTime?     @db.Date
-  ngayHetHan     DateTime?     @db.Date
-  tienCoc        Decimal?      @db.Decimal(10, 2)
-  giaPhongThucTe Decimal?      @db.Decimal(10, 2)
-  trangThai      Int?          @default(0)
-  ghiChu         String?       @db.Text
-  anhHopDong     String?       @db.Text
-  isDelete       Boolean       @default(false)
-  hoaDonPhong    HoaDonPhong[]
-  hopDongNguoiThue HopDongNguoiThue[]
-  phong          Phong?        @relation(fields: [phongId], references: [phongId], onDelete: Restrict, onUpdate: Restrict, map: "HopDong_Fk2")
-  chiTietLuanChuyen ChiTietLuanChuyen[]
+  hopDongId         String              @id @map("HopDongID") @db.VarChar(30)
+  phongId           Int?                @map("PhongID")
+  ngayKy            DateTime?           @db.Date
+  ngayHetHan        DateTime?           @db.Date
+  tienCoc           Decimal?            @db.Decimal(10, 2)
+  giaPhongThucTe    Decimal?            @db.Decimal(10, 2)
+  trangThai         Int?                @default(0)
+  ghiChu            String?             @db.Text
+  anhHopDong        String?             @db.Text
+  isDelete          Boolean             @default(false)
+  hoaDonPhong       HoaDonPhong[]
+  hopDongNguoiThue  HopDongNguoiThue[]
+  phong             Phong?              @relation(fields: [phongId], references: [phongId], onDelete: Restrict, onUpdate: Restrict, map: "HopDong_Fk2")
+  phieuLuanChuyen   PhieuLuanChuyen[]
 
   @@index([phongId], map: "PhongID")
   @@map("hopdong")
@@ -101,42 +100,32 @@ model HopDongNguoiThue {
   @@map("hopdong_nguoithue")
 }
 
-model PhieuSuCo {
-  suCoId            Int                 @id @default(autoincrement()) @map("SuCoID")
-  phongId           Int?                @map("PhongID")
-  tenSuCo           String?             @db.VarChar(255)
-  ghiChu            String?             @db.Text
-  ngayBatDau        DateTime?           @db.Date
-  ngayHoanThanh     DateTime?           @db.Date
-  trangThaiThongBao Int?                @default(0)
-  chiPhi            Decimal?            @db.Decimal(10, 2)
-  isDelete          Boolean             @default(false)
-
-  phong             Phong?              @relation(fields: [phongId], references: [phongId], onDelete: NoAction, onUpdate: NoAction, map: "PhieuSuCo_Fk1")
-  chiTietLuanChuyen ChiTietLuanChuyen[]
-
-  @@index([phongId], map: "PhongID")
-  @@map("phieusuco")
-}
-
-model ChiTietLuanChuyen {
+model PhieuLuanChuyen {
   chiTietLuanChuyenID Int       @id @default(autoincrement()) @map("IDChiTietLuanChuyen")
-  suCoId              Int       @map("SuCoID")
+
   hopDongId           String    @map("HopDongID") @db.VarChar(30)
+
   phongMoiId          Int?      @map("PhongMoiID")
-  ngayLuanChuyen      DateTime? @db.Date
-  trangThaiLuanChuyen Int?      @default(0)   /// 0 = Đã chuyển, 1 = hoàn thành
+
+  tuNgay              DateTime? @map("TuNgay") @db.Date
+
+  denNgay             DateTime? @map("DenNgay") @db.Date
+
+  lyDoLuanChuyen      String?   @db.VarChar(255)
+
+  chiPhi              Decimal?  @db.Decimal(10, 2)
+
   ghiChu              String?   @db.Text
+
   isDelete            Boolean   @default(false)
 
-  suCo                PhieuSuCo @relation(fields: [suCoId], references: [suCoId], onDelete: Restrict, onUpdate: Restrict, map: "CTLC_Fk1")
-  hopDong             HopDong   @relation(fields: [hopDongId], references: [hopDongId], onDelete: Restrict, onUpdate: Restrict, map: "CTLC_Fk2")
-  phongMoi            Phong?    @relation("PhongMoiLuanChuyen", fields: [phongMoiId], references: [phongId], onDelete: NoAction, onUpdate: NoAction, map: "CTLC_Fk3")
+  hopDong             HopDong   @relation(fields: [hopDongId], references: [hopDongId], onDelete: Restrict, onUpdate: Restrict, map: "PLC_FK1")
 
-  @@index([suCoId], map: "SuCoID")
+  phongMoi            Phong?    @relation("PhongMoiLuanChuyen", fields: [phongMoiId], references: [phongId], onDelete: NoAction, onUpdate: NoAction, map: "PLC_FK2")
+
   @@index([hopDongId], map: "HopDongID")
   @@index([phongMoiId], map: "PhongMoiID")
-  @@map("chitietluanchuyen")
+  @@map("phieuluanchuyen")
 }
 
 model DienNuoc {
@@ -456,4 +445,3 @@ model CauHinhGia {
 
   @@map("cauhinhgia")
 }
-

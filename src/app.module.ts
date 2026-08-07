@@ -28,8 +28,7 @@ import { LichSuMuaThietBiModule } from './lich-su-mua-thiet-bi/lich-su-mua-thiet
 import { CauHinhGiaModule } from './cau-hinh-gia/cau-hinh-gia.module';
 import { PhieuThuDienNuocModule } from './phieu-thu-dien-nuoc/phieu-thu-dien-nuoc.module';
 import { HopDongNguoiThueModule } from './hop-dong-nguoi-thue/hop-dong-nguoi-thue.module';
-import { PhieuSuCoModule } from './phieu-su-co/phieu-su-co.module';
-import { ChiTietLuanChuyenModule } from './chi-tiet-luan-chuyen/chi-tiet-luan-chuyen.module';
+import { PhieuLuanChuyenModule } from './phieu-luan-chuyen/phieu-luan-chuyen.module';
 
 @Module({
   imports: [
@@ -62,8 +61,7 @@ import { ChiTietLuanChuyenModule } from './chi-tiet-luan-chuyen/chi-tiet-luan-ch
     CauHinhGiaModule,
     PhieuThuDienNuocModule,
     HopDongNguoiThueModule,
-    PhieuSuCoModule,
-    ChiTietLuanChuyenModule,
+    PhieuLuanChuyenModule,
   ],
 })
 export class AppModule {}
