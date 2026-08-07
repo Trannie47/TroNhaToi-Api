@@ -234,4 +234,43 @@ export class SuaChuaService {
         tenPhong: lapRap?.phong?.tenPhong ?? null,
       }));
   }
+
+  async getByThietBiVaLapRap(thietBiId: number, lapRapId: number) {
+    const data = await this.prisma.suaChua.findMany({
+      where: {
+        thietBiId,
+        lapRapId,
+        isDelete: false,
+      },
+      include: {
+        hoadonsuachua: true,
+        lapRap: {
+          include: {
+            phong: {
+              select: { tenPhong: true },
+            },
+          },
+        },
+      },
+      orderBy: {
+        ngaySuaChua: 'desc',
+      },
+    });
+
+    return data
+      .sort((a, b) => {
+        const aCoHoaDon = a.hoadonsuachua != null;
+        const bCoHoaDon = b.hoadonsuachua != null;
+
+        if (aCoHoaDon === bCoHoaDon) {
+          return 0;
+        }
+
+        return aCoHoaDon ? 1 : -1;
+      })
+      .map(({ lapRap, ...item }) => ({
+        ...item,
+        tenPhong: lapRap?.phong?.tenPhong ?? null,
+      }));
+  }
 }

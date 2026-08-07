@@ -11,7 +11,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @Controller('sua-chua')
 export class SuaChuaController {
-  constructor(private readonly suaChuaService: SuaChuaService) {}
+  constructor(private readonly suaChuaService: SuaChuaService) { }
 
   @Post()
   @ApiOperation({ summary: 'Tạo Sửa Chữa mới' })
@@ -62,5 +62,16 @@ export class SuaChuaController {
     @Param('thietBiId', ParseIntPipe) thietBiId: number,
   ) {
     return this.suaChuaService.getByThietBi(thietBiId);
+  }
+
+  @Get('thiet-bi/:thietBiId/lap-rap/:lapRapId')
+  @ApiOperation({ summary: 'Lịch sử sửa chữa theo thiết bị và lắp ráp cụ thể' })
+  @ApiParam({ name: 'thietBiId', description: 'ID của thiết bị' })
+  @ApiParam({ name: 'lapRapId', description: 'ID của bản ghi lắp ráp' })
+  async getByThietBiVaLapRapId(
+    @Param('thietBiId', ParseIntPipe) thietBiId: number,
+    @Param('lapRapId', ParseIntPipe) lapRapId: number,
+  ) {
+    return this.suaChuaService.getByThietBiVaLapRap(thietBiId, lapRapId);
   }
 }

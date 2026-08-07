@@ -40,7 +40,7 @@ export class CreateSuaChuaDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsInt()
-  phongId?: number;
+  lapRapId?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -67,4 +67,4 @@ export class CreateSuaChuaDto {
   hoaDonSuaChua?: CreateHoaDonSuaChuaInlineDto;
 }
 
-export class UpdateSuaChuaDto extends PartialType(CreateSuaChuaDto) {}
+export class UpdateSuaChuaDto extends PartialType(CreateSuaChuaDto) { }
