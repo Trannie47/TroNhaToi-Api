@@ -15,7 +15,7 @@ import { CreateChiTietLuanChuyenDto } from '../dto/create-phieu-luan-chuyen.dto'
 import { UpdateChiTietLuanChuyenDto } from '../dto/update-phieu-luan-chuyen.dto';
 
 @ApiTags('Chi Tiết Luân Chuyển')
-@Controller('chi-tiet-luan-chuyen')
+@Controller('phieu-luan-chuyen')
 export class PhieuLuanChuyenController {
   constructor(private readonly service: PhieuLuanChuyenService) { }
 
