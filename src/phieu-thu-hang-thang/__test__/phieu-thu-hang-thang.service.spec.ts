@@ -80,11 +80,11 @@ describe('PhieuThuHangThangService', () => {
     });
 
     it('trạng thái = 2 (đã thanh toán đủ) khi tổng đã thu >= tổng tiền hóa đơn', async () => {
-      mockPrisma.hoaDonPhong.findUnique.mockResolvedValue({ ...MOCK_HOA_DON, soTien: 5000000 });
-      mockPrisma.phieuThuHangThang.findMany.mockResolvedValue([
-        { soTien: 3000000 },
-        { soTien: 2000000 },
-      ]);
+      mockPrisma.hoaDonPhong.findUnique.mockResolvedValue({
+        ...MOCK_HOA_DON,
+        soTien: 5000000,
+        phieuThuHangThang: [{ soTien: 3000000 }, { soTien: 2000000 }],
+      });
 
       const result = await service.capNhatTrangThaiHoaDon(mockPrisma, MA_HOA_DON);
 
@@ -96,8 +96,11 @@ describe('PhieuThuHangThangService', () => {
     });
 
     it('trạng thái = 1 (thanh toán một phần) khi 0 < tổng đã thu < tổng tiền hóa đơn', async () => {
-      mockPrisma.hoaDonPhong.findUnique.mockResolvedValue({ ...MOCK_HOA_DON, soTien: 5000000 });
-      mockPrisma.phieuThuHangThang.findMany.mockResolvedValue([{ soTien: 2000000 }]);
+      mockPrisma.hoaDonPhong.findUnique.mockResolvedValue({
+        ...MOCK_HOA_DON,
+        soTien: 5000000,
+        phieuThuHangThang: [{ soTien: 2000000 }],
+      });
 
       const result = await service.capNhatTrangThaiHoaDon(mockPrisma, MA_HOA_DON);
 
@@ -105,8 +108,11 @@ describe('PhieuThuHangThangService', () => {
     });
 
     it('trạng thái = 0 (chưa thanh toán) khi chưa có phiếu thu nào', async () => {
-      mockPrisma.hoaDonPhong.findUnique.mockResolvedValue({ ...MOCK_HOA_DON, soTien: 5000000 });
-      mockPrisma.phieuThuHangThang.findMany.mockResolvedValue([]);
+      mockPrisma.hoaDonPhong.findUnique.mockResolvedValue({
+        ...MOCK_HOA_DON,
+        soTien: 5000000,
+        phieuThuHangThang: [],
+      });
 
       const result = await service.capNhatTrangThaiHoaDon(mockPrisma, MA_HOA_DON);
 
@@ -146,10 +152,49 @@ describe('PhieuThuHangThangService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    it('thu dư số tiền còn nợ thì không chặn, chỉ ghi nhận đúng bằng số còn nợ', async () => {
+      mockPrisma.hoaDonPhong.findUnique
+        .mockResolvedValueOnce({
+          ...MOCK_HOA_DON,
+          soTien: 5000000,
+          phieuThuHangThang: [{ soTien: 4000000 }], // còn nợ 1.000.000, DTO thu 2.500.000 (dư)
+        })
+        .mockResolvedValueOnce({
+          ...MOCK_HOA_DON,
+          soTien: 5000000,
+          phieuThuHangThang: [{ soTien: 4000000 }, { soTien: 1000000 }],
+        });
+      mockPrisma.phieuThuHangThang.create.mockResolvedValue({ ...MOCK_PHIEU_THU, soTien: 1000000 });
+
+      const result = await service.create(CREATE_DTO as any);
+
+      expect(mockPrisma.phieuThuHangThang.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ maHoaDon: MA_HOA_DON, soTien: 1000000 }),
+        }),
+      );
+      expect(mockPrisma.hoaDonPhong.update).toHaveBeenCalledWith({
+        where: { maHoaDon: MA_HOA_DON },
+        data: { trangThai: 2 },
+      });
+      expect(result.data.hoaDonUpdated).toEqual({
+        maHoaDon: MA_HOA_DON,
+        trangThai: 2,
+        soTien: 5000000,
+        tongDaThu: 5000000,
+        conNo: 0,
+      });
+    });
+
     it('tạo phiếu thu thành công, cập nhật lại trạng thái hóa đơn và invalidate snapshot thống kê', async () => {
-      mockPrisma.hoaDonPhong.findUnique.mockResolvedValue({ ...MOCK_HOA_DON, soTien: 5000000 });
+      mockPrisma.hoaDonPhong.findUnique
+        .mockResolvedValueOnce({ ...MOCK_HOA_DON, soTien: 5000000, phieuThuHangThang: [] }) // kiểm tra còn nợ trước khi tạo
+        .mockResolvedValueOnce({
+          ...MOCK_HOA_DON,
+          soTien: 5000000,
+          phieuThuHangThang: [{ soTien: 2500000 }],
+        }); // capNhatTrangThaiHoaDon() sau khi tạo phiếu thu mới
       mockPrisma.phieuThuHangThang.create.mockResolvedValue(MOCK_PHIEU_THU);
-      mockPrisma.phieuThuHangThang.findMany.mockResolvedValue([{ soTien: 2500000 }]);
 
       const result = await service.create(CREATE_DTO as any);
 
@@ -185,9 +230,10 @@ describe('PhieuThuHangThangService', () => {
     });
 
     it('dùng ghi chú mặc định khi không truyền ghiChu', async () => {
-      mockPrisma.hoaDonPhong.findUnique.mockResolvedValue(MOCK_HOA_DON);
+      mockPrisma.hoaDonPhong.findUnique
+        .mockResolvedValueOnce({ ...MOCK_HOA_DON, phieuThuHangThang: [] })
+        .mockResolvedValueOnce({ ...MOCK_HOA_DON, phieuThuHangThang: [{ soTien: 2500000 }] });
       mockPrisma.phieuThuHangThang.create.mockResolvedValue(MOCK_PHIEU_THU);
-      mockPrisma.phieuThuHangThang.findMany.mockResolvedValue([]);
 
       const { ghiChu, ...dtoKhongCoGhiChu } = CREATE_DTO;
       await service.create(dtoKhongCoGhiChu as any);
@@ -243,8 +289,11 @@ describe('PhieuThuHangThangService', () => {
     it('xóa mềm phiếu thu, tính lại trạng thái hóa đơn và invalidate snapshot thống kê', async () => {
       mockPrisma.phieuThuHangThang.findUnique.mockResolvedValue(MOCK_PHIEU_THU);
       mockPrisma.phieuThuHangThang.update.mockResolvedValue({ ...MOCK_PHIEU_THU, isDelete: true });
-      mockPrisma.hoaDonPhong.findUnique.mockResolvedValue({ ...MOCK_HOA_DON, soTien: 5000000 });
-      mockPrisma.phieuThuHangThang.findMany.mockResolvedValue([]);
+      mockPrisma.hoaDonPhong.findUnique.mockResolvedValue({
+        ...MOCK_HOA_DON,
+        soTien: 5000000,
+        phieuThuHangThang: [],
+      });
 
       const result = await service.remove(MOCK_PHIEU_THU.maPhieuThu);
 

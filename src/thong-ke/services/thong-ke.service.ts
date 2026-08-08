@@ -765,8 +765,8 @@ export class ThongKeService {
       //   (sum, receipt) => sum + this.toNumber(receipt.soTien),
       //   0,
       // );
-      const phieuThu = invoice.phieuThuHangThang;
-      const collected = phieuThu ? Number(phieuThu.soTien ?? 0) : 0;
+      // const phieuThu = invoice.phieuThuHangThang;
+      // const collected = phieuThu ? Number(phieuThu.soTien ?? 0) : 0;
 
       const current = rooms.get(room.phongId) ?? {
         phongId: room.phongId,
@@ -777,7 +777,7 @@ export class ThongKeService {
       };
 
       current.tongDoanhThu += revenue;
-      current.tongDaThu += collected;
+      // current.tongDaThu += collected;
       rooms.set(room.phongId, current);
     }
 
@@ -890,8 +890,8 @@ export class ThongKeService {
     //   );
     // }
     for (const invoice of roomInvoices) {
-      const phieuThu = invoice.phieuThuHangThang;
-      const collected = phieuThu ? this.toNumber(phieuThu.soTien) : 0;
+      // const phieuThu = invoice.phieuThuHangThang;
+      // const collected = phieuThu ? this.toNumber(phieuThu.soTien) : 0;
 
       // addDebt(
       //  // invoice.hopDong?.nguoithue,

@@ -11,31 +11,22 @@ export class PhieuThuHangThangService {
   ) {}
 
   
- //TÍNH TOÁN & CẬP NHẬT TRẠNG THÁI HÓA ĐƠN
+ //TÍNH TOÁN & CẬP NHẬT TRẠNG THÁI HÓA ĐƠN (cộng dồn tất cả phiếu thu còn hiệu lực - cho phép thu nhiều lần)
   async capNhatTrangThaiHoaDon(tx: any, maHoaDon: string) {
     const hoaDon = await tx.hoaDonPhong.findUnique({
       where: { maHoaDon },
-      include:{
-        phieuThuHangThang: true
-      }
+      include: {
+        phieuThuHangThang: { where: { isDelete: false } },
+      },
     });
 
     if (!hoaDon) return { trangThai: 0, soTien: 0, tongDaThu: 0, conNo: 0 };
 
-    const phieuThu = hoaDon.phieuThuHangThang;
-    const tongDaThu = (phieuThu && !phieuThu.isDelete) ? Number(phieuThu.soTien ?? 0) : 0;
+    const tongDaThu = hoaDon.phieuThuHangThang.reduce(
+      (sum: number, pt: any) => sum + Number(pt.soTien ?? 0),
+      0,
+    );
     const tongTienHD = Number(hoaDon.soTien ?? 0);
-    // Lấy danh sách phiếu thu chưa xóa
-    // const dsPhieuThu = await tx.phieuThuHangThang.findMany({
-    //   where: { maHoaDon, isDelete: false },
-    // });
-
-    // const tongDaThu = dsPhieuThu.reduce(
-    //   (sum: number, pt: any) => sum + Number(pt.soTien ?? 0),
-    //   0,
-    // );
-
-   // const tongTienHD = Number(hoaDon.soTien ?? 0);
 
     // Xử lý linh hoạt trạng thái
     let trangThaiMoi = 0;
@@ -87,13 +78,13 @@ export class PhieuThuHangThangService {
     };
   }
 
-  //Tạo phiéu mới
+  //Tạo phiéu mới (cho phép lập nhiều phiếu thu cho cùng 1 hóa đơn - trả góp/trả thiếu/trả trước)
   async create(dto: CreatePhieuThuHangThangDto) {
     const { maHoaDon, soTien, ghiChu } = dto;
 
     const hoaDon = await this.prisma.hoaDonPhong.findUnique({
       where: { maHoaDon },
-      include: { phieuThuHangThang: true }// Kiểm tra xem đã có phiếu thu nào chưa
+      include: { phieuThuHangThang: { where: { isDelete: false } } }, // để tính đúng còn nợ bao nhiêu
     });
 
     if (!hoaDon || hoaDon.isDelete) {
@@ -105,12 +96,20 @@ export class PhieuThuHangThangService {
       throw new BadRequestException('Số tiền thu phải lớn hơn 0!');
     }
 
+    // Nếu thu dư so với số tiền còn nợ, chỉ ghi nhận đúng bằng số còn nợ
+    const tongDaThuTruoc = hoaDon.phieuThuHangThang.reduce(
+      (sum, pt) => sum + Number(pt.soTien ?? 0),
+      0,
+    );
+    const conNoHienTai = Number(hoaDon.soTien ?? 0) - tongDaThuTruoc;
+    const soTienGhiNhan = numSoTien > conNoHienTai ? conNoHienTai : numSoTien;
+
     return await this.prisma.$transaction(async (tx) => {
       // Tạo phiếu thu mới
       const phieuThuMoi = await tx.phieuThuHangThang.create({
         data: {
           maHoaDon: maHoaDon,
-          soTien: numSoTien,
+          soTien: soTienGhiNhan,
           ngayThu: new Date(),
           ghiChu: ghiChu ?? `Thu tiền hóa đơn ${maHoaDon}`,
         },

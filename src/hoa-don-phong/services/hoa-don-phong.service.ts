@@ -651,8 +651,8 @@ export class HoaDonPhongService {
 
     const resultList: any[] = invoices.map((hd) => {
       const tongTien = Number(hd.soTien ?? 0);
-      const phieuThu = hd.phieuThuHangThang;
-      const tongDaThu = (phieuThu && !phieuThu.isDelete) ? Number(phieuThu.soTien ?? 0) : 0;
+      const dsPhieuThu = hd.phieuThuHangThang; 
+      const tongDaThu = dsPhieuThu.reduce((sum, pt) => sum + Number(pt.soTien ?? 0), 0);
       const conNo = tongTien - tongDaThu > 0 ? tongTien - tongDaThu : 0;
 
       return {
@@ -668,11 +668,13 @@ export class HoaDonPhongService {
         conNo,
         trangThai: hd.trangThai,
         chiTietJson: hd.chiTietJson,
-        phieuThuHangThang: (phieuThu && !phieuThu.isDelete) ? {
-          soTien: Number(phieuThu.soTien ?? 0),
-          ngayThu: phieuThu.ngayThu,
-          ghiChu: phieuThu.ghiChu,
-        } : null,
+        // Danh sách phiếu thu (hỗ trợ nhiều lần thu - trả góp/trả thiếu/trả trước)
+        phieuThuHangThang: dsPhieuThu.map((pt) => ({
+          maPhieuThu: pt.maPhieuThu,
+          soTien: Number(pt.soTien ?? 0),
+          ngayThu: pt.ngayThu,
+          ghiChu: pt.ghiChu,
+        })),
       };
     });
 
@@ -767,7 +769,7 @@ export class HoaDonPhongService {
             phong: true,
           },
         },
-        phieuThuHangThang: true,
+        phieuThuHangThang: { where: { isDelete: false } },
       },
     });
 
@@ -777,8 +779,10 @@ export class HoaDonPhongService {
 
     const tongTien = Number(hoaDon.soTien ?? 0);
 
-    const phieuThu = hoaDon.phieuThuHangThang;
-    const tongDaThu = (phieuThu && !phieuThu.isDelete) ? Number(phieuThu.soTien ?? 0) : 0;
+    const tongDaThu = hoaDon.phieuThuHangThang.reduce(
+      (sum, pt) => sum + Number(pt.soTien ?? 0),
+      0,
+    );
     const conNo = tongTien - tongDaThu > 0 ? tongTien - tongDaThu : 0;
 
     return {
