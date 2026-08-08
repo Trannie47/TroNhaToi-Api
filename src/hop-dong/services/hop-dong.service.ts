@@ -14,7 +14,7 @@ export class HopDongService {
     private prisma: PrismaService,
     private thongKeSnapshotService: ThongKeSnapshotService,
     private hoaDonDienNuoc: HoaDonDienNuocService,
-  ) {}
+  ) { }
 
   //Lấy ds hợp đồng
   async findAll() {
@@ -450,7 +450,7 @@ export class HopDongService {
           });
         }
 
-        
+
         for (const ng of danhSachNguoiOGhepMoi) {
           await prisma.nguoiOGhep.upsert({
             where: { cccd_hopDongId: { cccd: ng.cccd, hopDongId: id } },
@@ -513,7 +513,7 @@ export class HopDongService {
           },
         });
 
-       
+
         if (danhSachNguoiOGhepMoi.length > 0) {
           await prisma.nguoiOGhep.createMany({
             data: danhSachNguoiOGhepMoi.map((ng) => ({
@@ -538,7 +538,7 @@ export class HopDongService {
         data: { trangThai: 1 },
       });
 
-    
+
       if (idntDaiDienCu !== idntDaiDienMoi) {
         const conHopDongKhac = await prisma.hopDong.findFirst({
           where: {
@@ -1108,5 +1108,33 @@ export class HopDongService {
         ? { skip: 1, cursor: { hopDongId: id } }
         : {}),
     });
+  }
+
+  async getHopDongByPhong(phongId: number) {
+    const phong = await this.prisma.phong.findFirst({
+      where: { phongId, isDelete: false },
+    });
+
+    if (!phong) {
+      throw new NotFoundException(`Phòng với ID ${phongId} không tồn tại`);
+    }
+
+    const homNay = new Date();
+    homNay.setHours(0, 0, 0, 0); // bỏ giờ/phút/giây để so sánh theo ngày
+
+    const list = await this.prisma.hopDong.findMany({
+      where: {
+        phongId,
+        isDelete: false,
+        ngayHetHan: { gt: homNay },
+      },
+      include: {
+        nguoiDaiDien: true,
+        nguoiOGhep: { where: { isDelete: false } },
+      },
+      orderBy: { ngayKy: 'desc' },
+    });
+
+    return list;
   }
 }

@@ -120,6 +120,102 @@ export class PhieuLuanChuyenService {
     );
   }
 
+  /**
+ * Lấy danh sách phiếu luân chuyển theo phòng cũ (phòng đang gắn trên hợp đồng).
+ */
+  async getLuanChuyenPhongHopDong(phongId: number) {
+    const phong = await this.prisma.phong.findFirst({
+      where: { phongId, isDelete: false },
+    });
+
+    if (!phong) {
+      throw new NotFoundException(`Không tìm thấy phòng #${phongId}`);
+    }
+
+    const list = await this.prisma.phieuLuanChuyen.findMany({
+      where: {
+        isDelete: false,
+        hopDong: { phongId, isDelete: false },
+      },
+      include: { hopDong: true, phongMoi: true },
+      orderBy: { chiTietLuanChuyenID: 'desc' },
+    });
+
+    return list;
+  }
+
+  /**
+  * Lấy danh sách phiếu luân chuyển theo phòng mới (phòng nhận luân chuyển tới),
+  * chỉ lấy phiếu còn hiệu lực (chưa có đến ngày, hoặc đến ngày >= hôm nay),
+  * mỗi phiếu "trải phẳng" theo từng người trong hợp đồng, kèm cờ isNguoiThueChinh.
+  */
+  async getLuanChuyenPhongMoi(phongId: number) {
+    const homNay = new Date();
+    homNay.setHours(0, 0, 0, 0);
+
+    const phong = await this.prisma.phong.findFirst({
+      where: { phongId, isDelete: false },
+    });
+
+    if (!phong) {
+      throw new NotFoundException(`Không tìm thấy phòng #${phongId}`);
+    }
+
+    const list = await this.prisma.phieuLuanChuyen.findMany({
+      where: {
+        isDelete: false,
+        phongMoiId: phongId,
+        OR: [
+          { denNgay: null },
+          { denNgay: { gte: homNay } },
+        ],
+      },
+      include: {
+        phongMoi: true,
+        hopDong: {
+          include: {
+            nguoiDaiDien: true,
+            nguoiOGhep: { where: { isDelete: false } },
+          },
+        },
+      },
+      orderBy: { chiTietLuanChuyenID: 'desc' },
+    });
+
+    const result = list.flatMap((phieu) => {
+      const { hopDong, ...phieuRest } = phieu;
+      if (!hopDong) return [];
+
+      const { nguoiDaiDien, nguoiOGhep, ...hopDongRest } = hopDong;
+
+      const dsNguoi = [
+        ...(nguoiDaiDien && !nguoiDaiDien.isDelete
+          ? [
+            {
+              isNguoiThueChinh: true,
+              hoTen: nguoiDaiDien.hoTen,
+              sdt: nguoiDaiDien.sdt,
+            },
+          ]
+          : []),
+        ...nguoiOGhep.map((ng) => ({
+          isNguoiThueChinh: false,
+          hoTen: ng.hoTen,
+          sdt: ng.sdt,
+        })),
+      ];
+
+      return dsNguoi.map((nguoi) => ({
+        ...phieuRest,
+        hopDong: hopDongRest,
+        ...nguoi,
+      }));
+    });
+
+    return result;
+  }
+
+  
   async update(id: number, dto: UpdateChiTietLuanChuyenDto) {
     const existing = await this.prisma.phieuLuanChuyen.findFirst({
       where: { chiTietLuanChuyenID: id, isDelete: false },

@@ -268,5 +268,99 @@ export class PhongService {
     return result;
   }
 
+  async getCoTheLuanChuyenByHopDong(hopDongId: string) {
+    const homNay = new Date();
+    homNay.setHours(0, 0, 0, 0);
+
+    const hopDongNguon = await this.prisma.hopDong.findFirst({
+      where: { hopDongId, isDelete: false },
+      include: {
+        nguoiDaiDien: true,
+        nguoiOGhep: { where: { isDelete: false } },
+      },
+    });
+
+    if (!hopDongNguon) {
+      throw new NotFoundException(`Không tìm thấy hợp đồng #${hopDongId}`);
+    }
+
+    // Số người dự tính chuyển qua = đại diện (nếu chưa xóa) + số người ở ghép
+    const soNguoiChuyenQua =
+      (hopDongNguon.nguoiDaiDien && !hopDongNguon.nguoiDaiDien.isDelete ? 1 : 0) +
+      hopDongNguon.nguoiOGhep.length;
+
+    const dsPhongKhac = await this.prisma.phong.findMany({
+      where: {
+        isDelete: false,
+        trangThai: { not: 2 }, // loại phòng đang sửa chữa
+        phongId: { not: hopDongNguon.phongId ?? undefined },
+      },
+      include: {
+        loaiPhong: true,
+        HopDong: {
+          where: {
+            isDelete: false,
+            trangThai: 1,
+            ngayHetHan: { gte: homNay }, // hợp đồng còn hạn mới tính người đang ở
+          },
+          include: {
+            nguoiDaiDien: true,
+            nguoiOGhep: { where: { isDelete: false } },
+          },
+        },
+        phieuLuanChuyenDen: {
+          where: {
+            isDelete: false,
+            denNgay: { gte: homNay }, // phiếu luân chuyển còn hiệu lực mới tính người đang chuyển tới
+          },
+          include: {
+            hopDong: {
+              include: {
+                nguoiDaiDien: true,
+                nguoiOGhep: { where: { isDelete: false } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const result = dsPhongKhac
+      .map((p) => {
+        const phong = p as any;
+        const soNguoiToiDa = phong.loaiPhong?.soNguoiToiDa ?? null;
+
+        const soNguoiTuHopDong = phong.HopDong.reduce((sum: number, hd: any) => {
+          const soDaiDien = hd.nguoiDaiDien && !hd.nguoiDaiDien.isDelete ? 1 : 0;
+          return sum + soDaiDien + hd.nguoiOGhep.length;
+        }, 0);
+
+        // Cộng thêm người đã/đang chuyển tới phòng này qua phiếu luân chuyển còn hiệu lực
+        const soNguoiTuLuanChuyen = phong.phieuLuanChuyenDen.reduce((sum: number, lc: any) => {
+          const hd = lc.hopDong;
+          if (!hd) return sum;
+          const soDaiDien = hd.nguoiDaiDien && !hd.nguoiDaiDien.isDelete ? 1 : 0;
+          return sum + soDaiDien + hd.nguoiOGhep.length;
+        }, 0);
+
+        const soNguoiDangO = soNguoiTuHopDong + soNguoiTuLuanChuyen;
+
+        const soChoConLai =
+          soNguoiToiDa !== null
+            ? soNguoiToiDa - soNguoiDangO - soNguoiChuyenQua
+            : null;
+
+        return {
+          ...phong,
+          soNguoiDangO,
+          soNguoiChuyenQua,
+          soChoConLai,
+        };
+      })
+      .filter((phong) => phong.soChoConLai !== null && phong.soChoConLai >= 0)
+      .sort((a, b) => (b.soChoConLai ?? 0) - (a.soChoConLai ?? 0));
+
+    return result;
+  }
 
 }

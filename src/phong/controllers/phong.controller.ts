@@ -51,6 +51,11 @@ export class PhongController {
     return this.phongService.findOne(id);
   }
 
+  @Get('co-the-luan-chuyen/:hopDongId')
+  getCoTheLuanChuyenByHopDong(@Param('hopDongId') hopDongId: string) {
+    return this.phongService.getCoTheLuanChuyenByHopDong(hopDongId);
+  }
+
   @Patch(':phongId')
   @ApiOperation({ summary: 'Cập nhật Phòng' })
   update(@Param('phongId', ParseIntPipe) id: number, @Body() dto: UpdatePhongDto) {

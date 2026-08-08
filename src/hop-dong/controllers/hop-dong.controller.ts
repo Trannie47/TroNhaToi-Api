@@ -17,9 +17,9 @@ export class HopDongController {
   constructor(
     private readonly hopDongService: HopDongService,
     private readonly cloudinaryService: CloudinaryService
-  ) {}
+  ) { }
 
-@Post('createContract')
+  @Post('createContract')
   @ApiOperation({ summary: 'Tạo Hợp Đồng mới' })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FilesInterceptor('files'))
@@ -48,13 +48,13 @@ export class HopDongController {
   @UseInterceptors(FilesInterceptor('files'))
   async update(@Param('hopDongId') id: string, @Body() dto: UpdateHopDongDto,
     @UploadedFiles() files: Array<Express.Multer.File>) {
-      const listUrlImage : string[] = [];
-      if(files && files.length > 0){
-        for(const file of files){
-          const result = await this.cloudinaryService.uploadImage(file); // up list ảnh lên cloudinary rồi lấy list url về
-          listUrlImage.push(result.secure_url);
-        } 
+    const listUrlImage: string[] = [];
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const result = await this.cloudinaryService.uploadImage(file); // up list ảnh lên cloudinary rồi lấy list url về
+        listUrlImage.push(result.secure_url);
       }
+    }
     return this.hopDongService.update(id, dto, listUrlImage);
   }
 
@@ -64,7 +64,7 @@ export class HopDongController {
     return this.hopDongService.findAll();
   }
 
-// laays danh sách phòng available cho việc tạo hợp đồng
+  // laays danh sách phòng available cho việc tạo hợp đồng
   @Get('roomsAvailable')
   @ApiOperation({ summary: 'Danh sách phòng available cho việc tạo hợp đồng' })
   getRoomsAvailableForContract() {
@@ -129,5 +129,11 @@ export class HopDongController {
   @ApiOperation({ summary: 'Kết thúc hợp đồng đang hoạt động (trạng thái 1), check công nợ và chốt ngày trả phòng' })
   terminateContract(@Param('hopDongId') id: string) {
     return this.hopDongService.terminateContract(id);
+  }
+
+  @Get('phong/:phongId')
+  @ApiOperation({ summary: 'Danh sách hợp đồng theo phòng (kèm người thuê đại diện + người ở ghép)' })
+  getHopDongByPhong(@Param('phongId', ParseIntPipe) phongId: number) {
+    return this.hopDongService.getHopDongByPhong(phongId);
   }
 }

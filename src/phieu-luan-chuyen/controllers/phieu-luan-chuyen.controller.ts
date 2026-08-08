@@ -34,6 +34,16 @@ export class PhieuLuanChuyenController {
     return this.service.findOne(id);
   }
 
+  @Get('phong-hop-dong/:phongId')
+  getLuanChuyenPhongHopDong(@Param('phongId', ParseIntPipe) phongId: number) {
+    return this.service.getLuanChuyenPhongHopDong(phongId);
+  }
+
+  @Get('phong-moi/:phongId')
+  getLuanChuyenPhongMoi(@Param('phongId', ParseIntPipe) phongId: number) {
+    return this.service.getLuanChuyenPhongMoi(phongId);
+  }
+
   @Patch(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateChiTietLuanChuyenDto) {
     return this.service.update(id, dto);
