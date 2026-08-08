@@ -7,12 +7,14 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateHoaDonPhongDto } from '../dto/create-hoa-don-phong.dto';
 import { ThongKeSnapshotService } from '../../thong-ke/services/thong-ke-snapshot.service';
+import { HoaDonDienNuocService } from '../../hoa-don-dien-nuoc/services/hoa-don-dien-nuoc.service';
 
 @Injectable()
 export class HoaDonPhongService {
   constructor(
     private prisma: PrismaService,
     private thongKeSnapshot: ThongKeSnapshotService,
+    private hoaDonDienNuoc: HoaDonDienNuocService,
   ) { }
 
   // Laays tát cả ds hóa đơn theo kỳ
@@ -61,29 +63,39 @@ export class HoaDonPhongService {
       throw new NotFoundException(`Không tìm thấy phòng với ID ${phongId}`);
     }
 
-    const banGhiCuoiCungCuaThang = await this.prisma.dienNuoc.findFirst({
-      where: { phongId: phongId, thangNam: thangNam },
-      orderBy: { lanGhi: 'desc' },
-    });
-
     const cauHinhGia = await this.prisma.cauHinhGia.findFirst({
       orderBy: { id: 'desc' },
     });
-    
+
     const giaDienHeThong = cauHinhGia?.giaDien ?? 3500;
     const giaNuocHeThong = cauHinhGia?.giaNuoc ?? 15000;
-
-    const giaDien = banGhiCuoiCungCuaThang?.giaDienApDung ?? giaDienHeThong;
-    const giaNuoc = banGhiCuoiCungCuaThang?.giaNuocApDung ?? giaNuocHeThong;
 
     const banGhiChuaChot = await this.prisma.dienNuoc.findFirst({
       where: { phongId: phongId, thangNam: thangNam, TrangThai: 0 },
       orderBy: { lanGhi: 'desc' },
     });
 
+    // Giá gợi ý: nếu đang có bản ghi NHÁP (tức đang sửa lại đúng 1 lần chốt cụ thể, có thể lần
+    // đó đã từng chốt rồi bị xóa mềm để sửa) -> lấy đúng giá đã chốt của lần ghi đó làm gợi ý.
+    // Nếu KHÔNG có bản ghi nháp (đang bắt đầu 1 lần ghi hoàn toàn mới) -> dùng giá hệ thống hiện
+    // hành
+    let giaDien = giaDienHeThong;
+    let giaNuoc = giaNuocHeThong;
+
     let dienNuocData: any = null;
 
     if (banGhiChuaChot) {
+      const hoaDonCuaLanGhiNay = await this.hoaDonDienNuoc.timTheoLanChot(
+        phongId,
+        thangNam,
+        banGhiChuaChot.lanGhi,
+        { kemDaXoa: true },
+      );
+      if (hoaDonCuaLanGhiNay) {
+        giaDien = hoaDonCuaLanGhiNay.giaDienApDung;
+        giaNuoc = hoaDonCuaLanGhiNay.giaNuocApDung;
+      }
+
       dienNuocData = {
         mode: 'EXISTS',
         lanGhi: banGhiChuaChot.lanGhi,
@@ -113,25 +125,9 @@ export class HoaDonPhongService {
         anhNuocMoi: null,
       };
     }
-    //Kiểm tra xem tháng này đã có bản ghi điện nước nào đã chốt (TrangThai: 1) nhưng CHƯA ĐƯỢC THANH TOÁN hay chưa
-    const danhSachDienNuocDaChot = await this.prisma.dienNuoc.findMany({
-      where: { phongId: phongId, thangNam: thangNam, TrangThai: 1 },
-      include: { phieuThuDienNuoc: { where: { isDelete: false } } },
-    });
-
-    let canCreateDienNuoc = true; // Mặc định cho phép tạo
-    for (const dn of danhSachDienNuocDaChot) {
-      const tienDien = (dn.chiSoDienMoi - dn.chiSoDienCu) * giaDien;
-      const tienNuoc = (dn.chiSoNuocMoi - dn.chiSoNuocCu) * giaNuoc;
-      const tongTienDN = tienDien + tienNuoc;
-      const daThuDN = Number(dn.phieuThuDienNuoc?.soTien ?? 0);
-
-      // Nếu có bất kỳ bản ghi điện nước nào đã chốt mà chưa thanh toán đủ -> Khóa không cho tạo mới
-      if (daThuDN < tongTienDN && tongTienDN > 0) {
-        canCreateDienNuoc = false;
-        break;
-      }
-    }
+    //Kiểm tra xem tháng này đã có hóa đơn điện nước nào CHƯA ĐƯỢC THANH TOÁN hay chưa
+    const danhSachChuaThanhToanThangNay = await this.hoaDonDienNuoc.layDanhSachChuaThanhToan(phongId, thangNam);
+    const canCreateDienNuoc = danhSachChuaThanhToanThangNay.length === 0;
 
     const [phanThang, phanNam] = thangNam.split('/');
     const thangInt = parseInt(phanThang, 10);
@@ -354,28 +350,11 @@ export class HoaDonPhongService {
 
     //CHẶN TẠO ĐIỆN NƯỚC NẾU CÒN HÓA ĐƠN CŨ CHƯA THANH TOÁN
     if (isChotDienNuoc) {
-      const danhSachDienNuocCu = await this.prisma.dienNuoc.findMany({
-        where: { phongId: Number(phongId), thangNam: thangNam, TrangThai: 1 },
-        include: { phieuThuDienNuoc: { where: { isDelete: false } } },
-      });
-
-      const cauHinhGia = await this.prisma.cauHinhGia.findFirst({
-        orderBy: { id: 'desc' },
-      });
-      const giaDien = cauHinhGia?.giaDien ?? 3500;
-      const giaNuoc = cauHinhGia?.giaNuoc ?? 15000;
-
-      for (const dn of danhSachDienNuocCu) {
-        const tienD = (dn.chiSoDienMoi - dn.chiSoDienCu) * giaDien;
-        const tienN = (dn.chiSoNuocMoi - dn.chiSoNuocCu) * giaNuoc;
-        const tongDN = tienD + tienN;
-        const daThuDN = Number(dn.phieuThuDienNuoc?.soTien ?? 0);
-
-        if (daThuDN < tongDN && tongDN > 0) {
-          throw new BadRequestException(
-            `Hóa đơn điện nước lần ${dn.lanGhi} của tháng ${thangNam} chưa được thanh toán đủ, không thể tạo thêm bản ghi điện nước mới!`,
-          );
-        }
+      const danhSachChuaThanhToan = await this.hoaDonDienNuoc.layDanhSachChuaThanhToan(Number(phongId), thangNam);
+      if (danhSachChuaThanhToan.length > 0) {
+        throw new BadRequestException(
+          `Hóa đơn điện nước lần ${danhSachChuaThanhToan[0].lanGhi} của tháng ${thangNam} chưa được thanh toán đủ, không thể tạo thêm bản ghi điện nước mới!`,
+        );
       }
     }
 
@@ -450,11 +429,10 @@ export class HoaDonPhongService {
         const giaDienGhiDe = layGiaHopLe(dto.giaDienApDung);
         const giaNuocGhiDe = layGiaHopLe(dto.giaNuocApDung);
 
+        let lanGhiDaChot: number;
+
         if (banGhiChuaChot) {
-          const giaDienApDung =
-            giaDienGhiDe ?? banGhiChuaChot.giaDienApDung ?? giaDienSystem;
-          const giaNuocApDung =
-            giaNuocGhiDe ?? banGhiChuaChot.giaNuocApDung ?? giaNuocSystem;
+          lanGhiDaChot = banGhiChuaChot.lanGhi;
           await tx.dienNuoc.updateMany({
             where: {
               phongId: phongId,
@@ -466,34 +444,28 @@ export class HoaDonPhongService {
               chiSoDienMoi: moiDien,
               chiSoNuocCu: cuNuoc,
               chiSoNuocMoi: moiNuoc,
-              giaDienApDung: giaDienApDung, 
-              giaNuocApDung: giaNuocApDung,
               anhDienMoi: danhSachUrlAnh.anhDienMoi ?? banGhiChuaChot.anhDienMoi,
               anhNuocMoi: danhSachUrlAnh.anhNuocMoi ?? banGhiChuaChot.anhNuocMoi,
               TrangThai: 1,
             },
           });
         } else {
-          const giaDienApDung = giaDienGhiDe ?? giaDienSystem;
-          const giaNuocApDung = giaNuocGhiDe ?? giaNuocSystem;
           const banGhiCuoi = await tx.dienNuoc.findFirst({
             where: { phongId: phongId, thangNam: thangNam },
             orderBy: { lanGhi: 'desc' },
           });
 
-          const nextLanGhi = banGhiCuoi ? banGhiCuoi.lanGhi + 1 : 1;
+          lanGhiDaChot = banGhiCuoi ? banGhiCuoi.lanGhi + 1 : 1;
 
           await tx.dienNuoc.create({
             data: {
               phongId: phongId,
               thangNam: thangNam,
-              lanGhi: nextLanGhi,
+              lanGhi: lanGhiDaChot,
               chiSoDienCu: cuDien,
               chiSoDienMoi: moiDien,
               chiSoNuocCu: cuNuoc,
               chiSoNuocMoi: moiNuoc,
-              giaDienApDung: giaDienApDung, 
-              giaNuocApDung: giaNuocApDung,
               anhDienMoi: danhSachUrlAnh.anhDienMoi ?? null,
               anhNuocMoi: danhSachUrlAnh.anhNuocMoi ?? null,
               TrangThai: 1,
@@ -501,6 +473,22 @@ export class HoaDonPhongService {
             },
           });
         }
+
+        // Lập hóa đơn điện nước: giá CHỐT tại thời điểm này + tổng tiền tính sẵn 
+        const giaDienApDung = giaDienGhiDe ?? giaDienSystem;
+        const giaNuocApDung = giaNuocGhiDe ?? giaNuocSystem;
+        const ngayLap = dto.ngayLap ? new Date(dto.ngayLap) : new Date();
+
+        await this.hoaDonDienNuoc.chotHoaDon(tx, {
+          phongId,
+          thangNam,
+          lanGhi: lanGhiDaChot,
+          giaDienApDung,
+          giaNuocApDung,
+          tienDien: (moiDien - cuDien) * giaDienApDung,
+          tienNuoc: (moiNuoc - cuNuoc) * giaNuocApDung,
+          ngayLap,
+        });
       }
 
       const tienDichVuKhacPerCustomer = Number(dto.tienDichVuKhac ?? 0);
@@ -641,10 +629,6 @@ export class HoaDonPhongService {
   }
 
   async getDanhSachByPhong(phongId: number, thangNam?: string) {
-    const cauHinhGia = await this.prisma.cauHinhGia.findFirst({orderBy: { id: 'desc' },});
-    const giaDien = cauHinhGia?.giaDien ?? 3500;
-    const giaNuoc = cauHinhGia?.giaNuoc ?? 15000;
-
     const invoices = await this.prisma.hoaDonPhong.findMany({
       where: {
         isDelete: false,
@@ -693,89 +677,70 @@ export class HoaDonPhongService {
     });
 
     if (thangNam) {
-      const danhSachDienNuocDaChot = await this.prisma.dienNuoc.findMany({
-        where: {
-          phongId: phongId,
-          thangNam: thangNam,
-          TrangThai: 1,
-        },
-        include: {
-          phieuThuDienNuoc: {
-            where: { isDelete: false },
-          },
-          phong: true,
-        },
-        orderBy: { lanGhi: 'desc' },
-      });
+      const danhSachHoaDonDienNuocDaChot = await this.hoaDonDienNuoc.layDanhSachTheoThangDeHienThi(phongId, thangNam);
 
-      for (const dn of danhSachDienNuocDaChot) {
+      for (const hd of danhSachHoaDonDienNuocDaChot) {
+        const dn = hd.dienNuoc;
         const cuDien = dn.chiSoDienCu;
         const moiDien = dn.chiSoDienMoi;
         const suDungDien = moiDien - cuDien > 0 ? moiDien - cuDien : 0;
-        
 
         const cuNuoc = dn.chiSoNuocCu;
         const moiNuoc = dn.chiSoNuocMoi;
         const suDungNuoc = moiNuoc - cuNuoc > 0 ? moiNuoc - cuNuoc : 0;
 
-        const giaDienDung = dn.giaDienApDung ?? giaDien;
-        const giaNuocDung = dn.giaNuocApDung ?? giaNuoc;
-
-        const tienNuoc = suDungNuoc * giaNuocDung;
-        const tienDien = suDungDien * giaDienDung;
-
-        const tongTienDN = tienDien + tienNuoc;
-        const daThuDN = Number(dn.phieuThuDienNuoc?.soTien ?? 0);
+        const tongTienDN = Number(hd.tongTien);
+        const daThuDN = Number(hd.phieuThuDienNuoc?.soTien ?? 0);
         const isPaid = daThuDN >= tongTienDN && tongTienDN > 0;
 
         const cleanThangNam = thangNam.replace('/', '');
-        const maHDDN = `HD-DN-${phongId}-${cleanThangNam}-L${dn.lanGhi}`;
+        const maHDDN = `HD-DN-${phongId}-${cleanThangNam}-L${hd.lanGhi}`;
 
         const snapshotDienNuoc = {
           maHoaDon: maHDDN,
           type: 'DIEN_NUOC',
           isDienNuocOnly: true,
           phongId: phongId,
-          lanGhi: dn.lanGhi,
+          lanGhi: hd.lanGhi,
           tenPhong: dn.phong?.tenPhong ?? `Phòng ${phongId}`,
           thangNam: thangNam,
-          ngayLap: dn.ngayGhi,
+          ngayLap: hd.ngayLap,
           tongThanhToan: tongTienDN,
           chiTietDienNuoc: {
             dien: {
               cu: cuDien,
               moi: moiDien,
               suDung: suDungDien,
-              donGia: giaDienDung,
-              thanhTien: tienDien,
+              donGia: hd.giaDienApDung,
+              thanhTien: Number(hd.tienDien),
             },
             nuoc: {
               cu: cuNuoc,
               moi: moiNuoc,
               suDung: suDungNuoc,
-              donGia: giaNuocDung,
-              thanhTien: tienNuoc,
+              donGia: hd.giaNuocApDung,
+              thanhTien: Number(hd.tienNuoc),
             },
           },
-          ghiChu: `Chốt chỉ số điện nước tháng ${thangNam} (Lần ${dn.lanGhi})`,
+          ghiChu: `Chốt chỉ số điện nước tháng ${thangNam} (Lần ${hd.lanGhi})`,
         };
 
         resultList.push({
           maHoaDon: maHDDN,
           hopDongId: '',
-          hoTenKhach: `Cả phòng ${phongId} (Lần ${dn.lanGhi})`,
+          hoTenKhach: `Cả phòng ${phongId} (Lần ${hd.lanGhi})`,
           tenPhong: dn.phong?.tenPhong ?? `Phòng ${phongId}`,
           thangNam: thangNam,
-          ngayLap: dn.ngayGhi,
+          ngayLap: hd.ngayLap,
           soTien: tongTienDN,
           tongDaThu: daThuDN,
           conNo: tongTienDN - daThuDN > 0 ? tongTienDN - daThuDN : 0,
           trangThai: isPaid ? 2 : 0,
           chiTietJson: JSON.stringify(snapshotDienNuoc),
-          phieuThuHangThang: dn.phieuThuDienNuoc ? {
-            soTien: Number(dn.phieuThuDienNuoc.soTien ?? 0),
-            ngayThu: dn.phieuThuDienNuoc.ngayThu,
-            ghiChu: dn.phieuThuDienNuoc.ghiChu, // Ghi chú thu tiền điện nước
+          phieuThuHangThang: hd.phieuThuDienNuoc ? {
+            soTien: Number(hd.phieuThuDienNuoc.soTien ?? 0),
+            ngayThu: hd.phieuThuDienNuoc.ngayThu,
+            ghiChu: hd.phieuThuDienNuoc.ghiChu, // Ghi chú thu tiền điện nước
           } : null,
         });
       }

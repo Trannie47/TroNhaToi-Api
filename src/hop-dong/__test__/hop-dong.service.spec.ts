@@ -6,9 +6,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
 import { HopDongService } from '../services/hop-dong.service';
 import { ThongKeSnapshotService } from '../../thong-ke/services/thong-ke-snapshot.service';
+import { HoaDonDienNuocService } from '../../hoa-don-dien-nuoc/services/hoa-don-dien-nuoc.service';
 
 const mockThongKeSnapshot = {
     invalidateAll: jest.fn(),
+};
+
+const mockHoaDonDienNuoc = {
+    layDanhSachChuaThanhToan: jest.fn().mockResolvedValue([]),
 };
 
 const mockPrisma = {
@@ -96,6 +101,7 @@ describe('HopDongService', () => {
                 HopDongService,
                 { provide: PrismaService, useValue: mockPrisma },
                 { provide: ThongKeSnapshotService, useValue: mockThongKeSnapshot },
+                { provide: HoaDonDienNuocService, useValue: mockHoaDonDienNuoc },
             ],
         }).compile();
 

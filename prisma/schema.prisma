@@ -47,7 +47,7 @@ model Phong {
 
 model NguoiThue {
   idnt               Int                  @id @default(autoincrement()) @map("IDNT")
-  cccd               String?              @map("CCCD") @db.VarChar(50)
+  cccd               String?              @map("CCCD") @db.VarChar(20)
   hoTen              String?              @db.VarChar(255)
   ngaySinh           DateTime?            @db.Date
   sdt                String?              @map("SDT") @db.VarChar(20)
@@ -131,31 +131,51 @@ model PhieuLuanChuyen {
 
 model DienNuoc {
   phongId      Int      @map("PhongID")
-  thangNam     String   @db.VarChar(20) 
-  lanGhi       Int      @default(1)  
-  
+  thangNam     String   @db.VarChar(20)
+  lanGhi       Int      @default(1)
+
   chiSoDienCu  Int      @default(0)
   chiSoDienMoi Int      @default(0)
   chiSoNuocCu  Int      @default(0)
   chiSoNuocMoi Int      @default(0)
 
-  giaDienApDung Float?   @map("gia_dien_ap_dung")
-  giaNuocApDung Float?   @map("gia_nuoc_ap_dung")
-  
   anhDienCu    String?  @db.VarChar(255)
   anhDienMoi   String?  @db.VarChar(255)
   anhNuocCu    String?  @db.VarChar(255)
   anhNuocMoi   String?  @db.VarChar(255)
-  
+
   ngayGhi      DateTime @default(now())
-  TrangThai    Int      @default(0)     // 0: Chưa tạo hóa đơn, 1: Đã tạo hóa đơn
-    
-  phong        Phong    @relation(fields: [phongId], references: [phongId], onDelete: Cascade, onUpdate: NoAction, map: "diennuoc_ibfk_1")
-  phieuThuDienNuoc PhieuThuDienNuoc?
-   
+  TrangThai    Int      @default(0)     // 0: Chưa chốt (đang nháp), 1: Đã chốt (không sửa được nữa)
+
+  phong          Phong           @relation(fields: [phongId], references: [phongId], onDelete: Cascade, onUpdate: NoAction, map: "diennuoc_ibfk_1")
+  hoaDonDienNuoc HoaDonDienNuoc?
+
   //Bộ Khóa chính
   @@id([phongId, thangNam, lanGhi])
   @@map("diennuoc")
+}
+
+model HoaDonDienNuoc {
+  phongId  Int    @map("PhongID")
+  thangNam String @db.VarChar(20)
+  lanGhi   Int
+
+  giaDienApDung Float @map("gia_dien_ap_dung") 
+  giaNuocApDung Float @map("gia_nuoc_ap_dung") 
+
+  tienDien Decimal @db.Decimal(12, 2)
+  tienNuoc Decimal @db.Decimal(12, 2)
+  tongTien Decimal @db.Decimal(12, 2)
+
+  ngayLap DateTime @default(now()) 
+  ghiChu  String?  @db.VarChar(255)
+  isDelete Boolean @default(false) 
+
+  dienNuoc         DienNuoc          @relation(fields: [phongId, thangNam, lanGhi], references: [phongId, thangNam, lanGhi], onDelete: Cascade, onUpdate: NoAction)
+  phieuThuDienNuoc PhieuThuDienNuoc?
+
+  @@id([phongId, thangNam, lanGhi])
+  @@map("hoadondiennuoc")
 }
 
 model PhieuThuDienNuoc {
@@ -171,7 +191,7 @@ model PhieuThuDienNuoc {
   ghiChu   String? @db.VarChar(255)
   isDelete Boolean @default(false)
 
-  dienNuoc DienNuoc @relation(fields: [phongId, thangNam, lanGhi], references: [phongId, thangNam, lanGhi], onDelete: Cascade, onUpdate: NoAction)
+  hoaDonDienNuoc HoaDonDienNuoc @relation(fields: [phongId, thangNam, lanGhi], references: [phongId, thangNam, lanGhi], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([phongId, thangNam, lanGhi])
   @@map("phieuthudiennuoc")

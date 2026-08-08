@@ -5,6 +5,7 @@ import { UpdateHopDongDto } from '../dto/update-hop-dong.dto';
 import { SearchHopDongDto } from '../dto/search-hop-dong.dto';
 import { GiaHanHopDongDto } from '../dto/renew-hop-dong.dto';
 import { ThongKeSnapshotService } from '../../thong-ke/services/thong-ke-snapshot.service';
+import { HoaDonDienNuocService } from '../../hoa-don-dien-nuoc/services/hoa-don-dien-nuoc.service';
 import { Cron } from '@nestjs/schedule';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class HopDongService {
   constructor(
     private prisma: PrismaService,
     private thongKeSnapshotService: ThongKeSnapshotService,
+    private hoaDonDienNuoc: HoaDonDienNuocService,
   ) {}
 
   //Lấy ds hợp đồng
@@ -882,26 +884,8 @@ export class HopDongService {
     });
 
     if (!conHopDongKhacCuaPhongTruocKhiKetThuc) {
-      const danhSachDienNuocDaChot = await this.prisma.dienNuoc.findMany({
-        where: { phongId, TrangThai: 1 },
-        include: { phieuThuDienNuoc: { where: { isDelete: false } } },
-      });
-
-      const cauHinhGia = await this.prisma.cauHinhGia.findFirst({
-        orderBy: { id: 'desc' },
-      });
-      const giaDienHeThong = cauHinhGia?.giaDien ?? 3500;
-      const giaNuocHeThong = cauHinhGia?.giaNuoc ?? 15000;
-
-      const coNoDienNuoc = danhSachDienNuocDaChot.some((dn) => {
-        const giaDien = dn.giaDienApDung ?? giaDienHeThong;
-        const giaNuoc = dn.giaNuocApDung ?? giaNuocHeThong;
-        const tienDien = (dn.chiSoDienMoi - dn.chiSoDienCu) * giaDien;
-        const tienNuoc = (dn.chiSoNuocMoi - dn.chiSoNuocCu) * giaNuoc;
-        const tongTien = tienDien + tienNuoc;
-        const daThu = Number(dn.phieuThuDienNuoc?.soTien ?? 0);
-        return tongTien - daThu > 0;
-      });
+      const danhSachChuaThanhToan = await this.hoaDonDienNuoc.layDanhSachChuaThanhToan(phongId);
+      const coNoDienNuoc = danhSachChuaThanhToan.length > 0;
 
       if (coNoDienNuoc) {
         throw new BadRequestException(

@@ -29,6 +29,7 @@ import { CauHinhGiaModule } from './cau-hinh-gia/cau-hinh-gia.module';
 import { PhieuThuDienNuocModule } from './phieu-thu-dien-nuoc/phieu-thu-dien-nuoc.module';
 import { PhieuLuanChuyenModule } from './phieu-luan-chuyen/phieu-luan-chuyen.module';
 import { NguoiOGhepModule } from './nguoi-o-ghep/nguoi-o-ghep.module';
+import { HoaDonDienNuocModule } from './hoa-don-dien-nuoc/hoa-don-dien-nuoc.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { NguoiOGhepModule } from './nguoi-o-ghep/nguoi-o-ghep.module';
     PhieuThuDienNuocModule,
     PhieuLuanChuyenModule,
     NguoiOGhepModule,
+    HoaDonDienNuocModule,
   ],
 })
 export class AppModule {}
