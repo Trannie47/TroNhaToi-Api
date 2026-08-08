@@ -57,7 +57,7 @@ model NguoiThue {
   trangThai          Int                  @default(0)     /// 0 = Chưa thuê (mới tạo), 1 = Đang thuê hoạt động, 2 = Đã dọn đi
   isDelete           Boolean              @default(false)
   hoaDonTapHoa       HoaDonTapHoa[]
-  hopDongNguoiThue   HopDongNguoiThue[]
+  hopDongDaiDien     HopDong[]
   PhuongTien         PhuongTien[]
   NguoiLuuTruTamThoi NguoiLuuTruTamThoi[]
 
@@ -67,6 +67,7 @@ model NguoiThue {
 model HopDong {
   hopDongId         String              @id @map("HopDongID") @db.VarChar(30)
   phongId           Int?                @map("PhongID")
+  idntDaiDien       Int                 @map("IDNT_DaiDien")
   ngayKy            DateTime?           @db.Date
   ngayHetHan        DateTime?           @db.Date
   tienCoc           Decimal?            @db.Decimal(10, 2)
@@ -76,28 +77,28 @@ model HopDong {
   anhHopDong        String?             @db.Text
   isDelete          Boolean             @default(false)
   hoaDonPhong       HoaDonPhong[]
-  hopDongNguoiThue  HopDongNguoiThue[]
+  nguoiOGhep        NguoiOGhep[]
   phong             Phong?              @relation(fields: [phongId], references: [phongId], onDelete: Restrict, onUpdate: Restrict, map: "HopDong_Fk2")
+  nguoiDaiDien      NguoiThue           @relation(fields: [idntDaiDien], references: [idnt], onDelete: Restrict, onUpdate: Restrict, map: "HopDong_Fk3")
   phieuLuanChuyen   PhieuLuanChuyen[]
 
   @@index([phongId], map: "PhongID")
+  @@index([idntDaiDien], map: "IDNT_DaiDien")
   @@map("hopdong")
 }
 
-model HopDongNguoiThue {
-  id                 Int      @id @default(autoincrement())
-  hopDongId          String   @map("HopDongID") @db.VarChar(30)
-  idnt               Int      @map("IDNT")
-  laDaiDien          Boolean  @default(false)
-  quanHeVoiDaiDien   String?  @db.VarChar(255)
-  isDelete           Boolean  @default(false)
+model NguoiOGhep {
+  cccd             String   @db.VarChar(20)
+  hoTen            String?  @db.VarChar(255)
+  sdt              String?  @map("SDT") @db.VarChar(20)
+  quanHeVoiDaiDien String?  @db.VarChar(255)
+  hopDongId        String   @map("HopDongID") @db.VarChar(30)
+  isDelete         Boolean  @default(false)
 
-  hopDong            HopDong  @relation(fields: [hopDongId], references: [hopDongId], onDelete: Cascade)
-  nguoithue          NguoiThue @relation(fields: [idnt], references: [idnt], onDelete: Cascade)
-
-  @@unique([hopDongId, idnt])
-  @@index([idnt], map: "IDNT")
-  @@map("hopdong_nguoithue")
+  hopDong          HopDong  @relation(fields: [hopDongId], references: [hopDongId], onDelete: Cascade)
+  @@id([cccd, hopDongId])
+  @@index([hopDongId], map: "HopDongID")
+  @@map("nguoioghep")
 }
 
 model PhieuLuanChuyen {

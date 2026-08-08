@@ -16,11 +16,17 @@ export class CreateHopDongDto {
   @IsInt()
   phongId: number;
 
+  @ApiProperty({ description: 'ID người thuê đứng đại diện hợp đồng' })
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  idntDaiDien: number;
+
   @ApiPropertyOptional({
-    description: 'Danh sách thành viên hợp đồng (JSON string do FE gửi lên, service tự parse & validate)',
+    description:
+      'Danh sách người ở ghép (JSON string do FE gửi lên, service tự parse & validate). Mỗi phần tử: { cccd, hoTen, sdt, quanHeVoiDaiDien }',
   })
   @IsOptional()
-  danhSachThanhVien?: any;
+  danhSachNguoiOGhep?: any;
 
   @ApiPropertyOptional({ description: 'Ngày ký (YYYY-MM-DD)' })
   @IsOptional()

@@ -32,14 +32,6 @@ export class HopDongController {
     if (body.tienCoc) body.tienCoc = parseFloat(body.tienCoc);
     if (body.giaPhongThucTe) body.giaPhongThucTe = parseFloat(body.giaPhongThucTe);
 
-    if (body.danhSachThanhVien && typeof body.danhSachThanhVien === 'string') {
-      try {
-        body.danhSachThanhVien = JSON.parse(body.danhSachThanhVien);
-      } catch (e) {
-        body.danhSachThanhVien = [];
-      }
-    }
-
     const listUrlImage: string[] = [];
     if (files && files.length > 0) {
       for (const file of files) {

@@ -76,9 +76,10 @@ describe('NguoiThueService', () => {
 
         await service.getNguoiThueAvailableForContract();
 
+        // Người đang có hợp đồng khác vẫn được phép xuất hiện (có thể đứng đại diện nhiều hợp đồng)
         expect(mockPrisma.nguoiThue.findMany).toHaveBeenCalledWith(
             expect.objectContaining({
-                where: { isDelete: false, trangThai: { in: [0, 1] } },
+                where: { isDelete: false },
             }),
         );
     });

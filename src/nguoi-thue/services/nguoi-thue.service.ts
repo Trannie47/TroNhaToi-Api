@@ -75,66 +75,18 @@ export class NguoiThueService {
       }));
   }
 
-  // Danh sách người có thể thêm là thành viên ở cùng.
-  // Không giới hạn tuổi, nhưng không hiển thị người đang thuộc một hợp đồng hoạt động khác.
-  // excludeHopDongId: khi đang sửa 1 hợp đồng, bỏ qua ràng buộc từ chính hợp đồng đó để
-  // các thành viên hiện tại của nó không bị loại nhầm khỏi danh sách khả dụng.
-  async getNguoiThueAvailableForMember(excludeIdnt?: number, excludeHopDongId?: string) {
-    const thanhVienDangHoatDong = await this.prisma.hopDongNguoiThue.findMany({
-      where: {
-        isDelete: false,
-        ...(excludeHopDongId ? { hopDongId: { not: excludeHopDongId } } : {}),
-        hopDong: {
-          isDelete: false,
-          trangThai: { in: [0, 1] },
-        },
-      },
-      select: { idnt: true },
-    });
-
-    const danhSachIdntDaCoPhong = thanhVienDangHoatDong.map((item) => item.idnt);
-    const danhSachIdntCanLoai = excludeIdnt === undefined
-      ? danhSachIdntDaCoPhong
-      : [...danhSachIdntDaCoPhong, excludeIdnt];
-
-    const danhSach = await this.prisma.nguoiThue.findMany({
-      where: {
-        isDelete: false,
-        ...(danhSachIdntCanLoai.length > 0
-          ? { idnt: { notIn: danhSachIdntCanLoai } }
-          : {}),
-      },
-      select: {
-        idnt: true,
-        hoTen: true,
-        ngaySinh: true,
-        trangThai: true,
-      },
-      orderBy: { hoTen: 'asc' },
-    });
-
-    return danhSach.map((nguoiThue) => ({
-      ...nguoiThue,
-      tuoi: nguoiThue.ngaySinh
-        ? this.tinhTuoi(nguoiThue.ngaySinh, new Date())
-        : null,
-      coTheLamThanhVien: true,
-    }));
-  }
 
   async getNguoiThueAvailableForContract(ngayKy?: string) {
     return this.getNguoiThueAvailableForRepresentative(ngayKy);
   }
 
-
+  // Lấy danh sách hợp đồng mà người này đứng đại diện 
   async findRoom_NguoiThue(id: number) {
     const listHopDong = await this.prisma.hopDong.findMany({
       where: {
         isDelete: false,
         trangThai: { not: 2 },
-        hopDongNguoiThue: {
-          some: { idnt: id, isDelete: false },
-        },
+        idntDaiDien: id,
       },
       include: {
         phong: {
@@ -142,10 +94,7 @@ export class NguoiThueService {
             loaiPhong: true,
           }
         },
-        hopDongNguoiThue: {
-          where: { idnt: id, isDelete: false },
-          include: { nguoithue: true },
-        },
+        nguoiDaiDien: true,
       }
     });
     return listHopDong.filter((hd) => hd.phong !== null && hd.isDelete === false); // list lấy cả thông tin  hợp đồng, phòng và loại phòng theo id người thuê
@@ -208,11 +157,11 @@ export class NguoiThueService {
     if (!tenant) {
       throw new NotFoundException(`Người thuê với id ${id} không tồn tại`);
     }
-    const hasHopDong = await this.prisma.hopDongNguoiThue.findFirst({
+    const hasHopDong = await this.prisma.hopDong.findFirst({
       where: {
-        idnt: id,
+        idntDaiDien: id,
         isDelete: false,
-        hopDong: { isDelete: false, trangThai: { not: 2 } },
+        trangThai: { not: 2 },
       },
     });
     if (hasHopDong) {
@@ -289,29 +238,36 @@ export class NguoiThueService {
       include: {
         hopDong: {
           include: {
-            hopDongNguoiThue: {
-              where: { isDelete: false },
-              include: {
-                nguoithue: true,
-              },
-            },
+            nguoiDaiDien: true,
+            nguoiOGhep: { where: { isDelete: false } },
           },
         },
         phongMoi: true,
       },
     });
 
-    const result = phieuLuanChuyens.flatMap((plc) =>
-      plc.hopDong.hopDongNguoiThue.map((hdnt) => ({
-        ...hdnt.nguoithue,
+    const result = phieuLuanChuyens.flatMap((plc) => {
+      const thongTinChung = {
         hopDongId: plc.hopDongId,
         chiTietLuanChuyenID: plc.chiTietLuanChuyenID,
         tuNgay: plc.tuNgay,
         denNgay: plc.denNgay,
         phongMoiId: plc.phongMoiId,
         tenPhongMoi: plc.phongMoi?.tenPhong,
-      })),
-    );
+      };
+
+      const daiDien = {
+        ...plc.hopDong.nguoiDaiDien,
+        ...thongTinChung,
+      };
+
+      const dsNguoiOGhep = plc.hopDong.nguoiOGhep.map((ng) => ({
+        ...ng,
+        ...thongTinChung,
+      }));
+
+      return [daiDien, ...dsNguoiOGhep];
+    });
 
     return result;
   }

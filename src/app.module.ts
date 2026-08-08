@@ -27,8 +27,8 @@ import { ThongKeModule } from './thong-ke/thong-ke.module';
 import { LichSuMuaThietBiModule } from './lich-su-mua-thiet-bi/lich-su-mua-thiet-bi.module';
 import { CauHinhGiaModule } from './cau-hinh-gia/cau-hinh-gia.module';
 import { PhieuThuDienNuocModule } from './phieu-thu-dien-nuoc/phieu-thu-dien-nuoc.module';
-import { HopDongNguoiThueModule } from './hop-dong-nguoi-thue/hop-dong-nguoi-thue.module';
 import { PhieuLuanChuyenModule } from './phieu-luan-chuyen/phieu-luan-chuyen.module';
+import { NguoiOGhepModule } from './nguoi-o-ghep/nguoi-o-ghep.module';
 
 @Module({
   imports: [
@@ -60,8 +60,8 @@ import { PhieuLuanChuyenModule } from './phieu-luan-chuyen/phieu-luan-chuyen.mod
     LichSuMuaThietBiModule,
     CauHinhGiaModule,
     PhieuThuDienNuocModule,
-    HopDongNguoiThueModule,
     PhieuLuanChuyenModule,
+    NguoiOGhepModule,
   ],
 })
 export class AppModule {}

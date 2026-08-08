@@ -20,9 +20,9 @@ export class PhongService {
         HopDong: {
           where: { isDelete: false, trangThai: { not: 2 } },
           include: {
-            hopDongNguoiThue: {
+            nguoiOGhep: {
               where: { isDelete: false },
-              select: { idnt: true },
+              select: { cccd: true },
             },
           },
         }
@@ -35,7 +35,7 @@ export class PhongService {
       const hdDangHieuLuc = phong.HopDong.filter((hd: any) => hd.trangThai === 1);
       if (hdDangHieuLuc && hdDangHieuLuc.length > 0) {
         giahientai = hdDangHieuLuc.reduce((sum, hd) => sum + Number(hd.giaPhongThucTe || 0), 0);
-        soNguoiHienTai = hdDangHieuLuc.reduce((sum: number, hd: any) => sum + hd.hopDongNguoiThue.length, 0);
+        soNguoiHienTai = hdDangHieuLuc.reduce((sum: number, hd: any) => sum + 1 + hd.nguoiOGhep.length, 0);
       } else {
         giahientai = phong.loaiPhong?.giaTien || 0;
       }
@@ -57,10 +57,8 @@ export class PhongService {
         HopDong: {
           where: { isDelete: false, trangThai: { not: 2 } },
           include: {
-            hopDongNguoiThue: {
-              where: { isDelete: false },
-              include: { nguoithue: true },
-            },
+            nguoiDaiDien: true,
+            nguoiOGhep: { where: { isDelete: false } },
           }
         }
       }
@@ -68,11 +66,10 @@ export class PhongService {
     if (!phongWithHopDong || !phongWithHopDong.HopDong) {
       return [];
     }
-    return phongWithHopDong.HopDong.flatMap((hd) =>
-      hd.hopDongNguoiThue
-        .filter((member) => !member.nguoithue.isDelete)
-        .map((member) => member.nguoithue),
-    );
+    return phongWithHopDong.HopDong.flatMap((hd) => [
+      ...(hd.nguoiDaiDien && !hd.nguoiDaiDien.isDelete ? [hd.nguoiDaiDien] : []),
+      ...hd.nguoiOGhep,
+    ]);
   }
   // Lấy thoong tin chi tiết phòng theo ID
   async findOne(id: number) {

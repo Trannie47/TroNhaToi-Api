@@ -73,12 +73,13 @@ export class PhieuLuanChuyenService {
    */
   private async demSoNguoiDangO(phongId?: number | null): Promise<number> {
     if (!phongId) return 0;
-    return this.prisma.hopDongNguoiThue.count({
-      where: {
-        isDelete: false,
-        hopDong: { phongId, isDelete: false, trangThai: 1 },
-      },
-    });
+    // return this.prisma.hopDongNguoiThue.count({
+    //   where: {
+    //     isDelete: false,
+    //     hopDong: { phongId, isDelete: false, trangThai: 1 },
+    //   },
+    // });
+    return 0;
   }
 
   /**

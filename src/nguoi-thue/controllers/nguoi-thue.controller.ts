@@ -46,30 +46,6 @@ export class NguoiThueController {
     return this.nguoiThueService.getNguoiThueAvailableForRepresentative(ngayKy);
   }
 
-  @Get('available-members')
-  @ApiOperation({ summary: 'Lấy danh sách người có thể thêm làm thành viên ở cùng' })
-  @ApiQuery({
-    name: 'excludeIdnt',
-    required: false,
-    description: 'ID người đại diện cần loại khỏi danh sách',
-    type: Number,
-  })
-  @ApiQuery({
-    name: 'excludeHopDongId',
-    required: false,
-    description: 'ID hợp đồng đang sửa, để không loại các thành viên hiện tại của chính hợp đồng này',
-    type: String,
-  })
-  getAvailableMembers(
-    @Query('excludeIdnt') excludeIdnt?: string,
-    @Query('excludeHopDongId') excludeHopDongId?: string,
-  ) {
-    const parsedExcludeIdnt = excludeIdnt === undefined
-      ? undefined
-      : Number(excludeIdnt);
-
-    return this.nguoiThueService.getNguoiThueAvailableForMember(parsedExcludeIdnt, excludeHopDongId);
-  }
 
   @Get(':idnt/listRoomNguoiThue')
   @ApiOperation({ summary: 'Chi tiết Người Thuê' })

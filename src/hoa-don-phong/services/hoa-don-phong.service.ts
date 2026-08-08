@@ -150,14 +150,9 @@ export class HoaDonPhongService {
           { trangThai: 0 },
         ], //quét những ai đang có hợp đồng hiệu lực or sắp hiệu lực mà vẫn đang nằm trong tháng đó
       },
-     include: {
-        hopDongNguoiThue: {
-          where: { isDelete: false }
-        }
-      }
     });
 
-    const dsNt = Array.from(new Set(activeContracts.flatMap((c) => c.hopDongNguoiThue?.map((tv) => tv.idnt) || [])));
+    const dsNt = Array.from(new Set(activeContracts.map((c) => c.idntDaiDien)));
 
     // Nếu phòng không có ai đang ở, trả về danh sách hóa đơn phòng trống luôn
     if (dsNt.length === 0) {
@@ -178,12 +173,7 @@ export class HoaDonPhongService {
       where: {
         phongId: phongId,
         isDelete: false,
-        hopDongNguoiThue: {
-          some: {
-            idnt: { in: dsNt },
-            isDelete: false,
-          },
-        }, // Chỉ lấy của người đang ở
+        idntDaiDien: { in: dsNt }, // Chỉ lấy của người đang ở
         ngayKy: { lte: ngayCuoiThang },
         OR: [
           { trangThai: 1 },
@@ -192,12 +182,8 @@ export class HoaDonPhongService {
         ],
       },
       include: {
-        hopDongNguoiThue: {
-          where: { isDelete: false },
-          include: {
-            nguoithue: true,
-          },
-        },
+        nguoiDaiDien: true,
+        nguoiOGhep: { where: { isDelete: false } },
         hoaDonPhong: {
           where: { thangNam: thangNam, isDelete: false },
         },
@@ -210,18 +196,14 @@ export class HoaDonPhongService {
       include: { nguoithue: true },
     });
 
-    const layDaiDienIdnt = (hd: any): number | null =>
-      hd.hopDongNguoiThue?.find((tv: any) => tv.laDaiDien)?.idnt ?? null;
-
-
     const tienThanTheoHopDongId = new Map<string, any>();
     for (const n of danhSachHopDong) {
-      const daiDienN = layDaiDienIdnt(n);
+      const daiDienN = n.idntDaiDien;
       if (daiDienN === null || !n.ngayKy) continue;
 
       const tienThan = danhSachHopDong.find((p) => {
         if (p.hopDongId === n.hopDongId || !p.ngayHetHan) return false;
-        if (layDaiDienIdnt(p) !== daiDienN) return false;
+        if (p.idntDaiDien !== daiDienN) return false;
 
         const ngayKyTiepTheo = new Date(p.ngayHetHan);
         ngayKyTiepTheo.setDate(ngayKyTiepTheo.getDate() + 1);
@@ -279,12 +261,9 @@ export class HoaDonPhongService {
         }
       }
 
-      // Tiền xe gom theo toàn bộ các thành viên hiện tại của hợp đồng cần lập
-      const thanhVienHienTai = hopDongCanLap.hopDongNguoiThue ?? [];
-      const idntThanhVienHienTai = thanhVienHienTai.map((tv: any) => tv.idnt);
-
+      // Tiền xe chỉ tính theo người đại diện (xe của người ở ghép không tách riêng)
       const dsXeTinhTien = danhSachPhuongTien
-        .filter((xe) => idntThanhVienHienTai.includes(xe.idnt))
+        .filter((xe) => xe.idnt === hopDongCanLap.idntDaiDien)
         .map((xe) => ({
           id: xe.ID,
           bienSo: xe.bienSo,
@@ -320,16 +299,18 @@ export class HoaDonPhongService {
         dsGhiChu.push(`Đã lập hóa đơn cho kỳ ${thangNam}`);
       }
 
-      const daiDien = thanhVienHienTai.find((tv: any) => tv.laDaiDien);
+      const daiDien = hopDongCanLap.nguoiDaiDien;
+      const dsNguoiOGhep = hopDongCanLap.nguoiOGhep ?? [];
 
       danhSachHopDongCalculated.push({
         hopDongId: hopDongCanLap.hopDongId,
         idnt: daiDien?.idnt ?? null,
-        hoTen: daiDien?.nguoithue?.hoTen ?? 'Khách thuê',
-        sdt: daiDien?.nguoithue?.sdt ?? '',
-        danhSachThanhVien: thanhVienHienTai.map(
-          (tv: any) => tv.nguoithue?.hoTen ?? 'Khách thuê',
-        ),
+        hoTen: daiDien?.hoTen ?? 'Khách thuê',
+        sdt: daiDien?.sdt ?? '',
+        danhSachThanhVien: [
+          daiDien?.hoTen ?? 'Khách thuê',
+          ...dsNguoiOGhep.map((ng: any) => ng.hoTen ?? 'Người ở ghép'),
+        ],
         giaPhongGoc: Number(
           hopDongCanLap.giaPhongThucTe ?? thongTinPhong.loaiPhong?.giaTien ?? 0,
         ),
@@ -649,7 +630,6 @@ export class HoaDonPhongService {
         createdInvoices.push(hoaDonMoi);
       }
 
-      // Thêm lại: invalidate snapshot thống kê sau khi tạo hóa đơn / chốt điện nước
       await this.thongKeSnapshot.invalidateAll(tx);
 
       return {
@@ -674,12 +654,7 @@ export class HoaDonPhongService {
       include: {
         hopDong: {
           include: {
-            hopDongNguoiThue: {
-              where: { isDelete: false },
-              include: {
-                nguoithue: true,
-              },
-            },
+            nguoiDaiDien: true,
             phong: true,
           },
         },
@@ -699,8 +674,8 @@ export class HoaDonPhongService {
       return {
         maHoaDon: hd.maHoaDon,
         hopDongId: hd.hopDongId,
-       hoTenKhach: hd.hopDong?.hopDongNguoiThue?.find((tv) => tv.laDaiDien)?.nguoithue?.hoTen ?? 'Khách thuê',
-      sdtKhach: hd.hopDong?.hopDongNguoiThue?.find((tv) => tv.laDaiDien)?.nguoithue?.sdt ?? '',
+        hoTenKhach: hd.hopDong?.nguoiDaiDien?.hoTen ?? 'Khách thuê',
+        sdtKhach: hd.hopDong?.nguoiDaiDien?.sdt ?? '',
         tenPhong: hd.hopDong?.phong?.tenPhong ?? '',
         thangNam: hd.thangNam,
         ngayLap: hd.ngayLap,
@@ -822,12 +797,8 @@ export class HoaDonPhongService {
       include: {
         hopDong: {
           include: {
-           hopDongNguoiThue: {
-            where: { isDelete: false },
-            include: {
-              nguoithue: true,
-            },
-          },
+            nguoiDaiDien: true,
+            nguoiOGhep: { where: { isDelete: false } },
             phong: true,
           },
         },

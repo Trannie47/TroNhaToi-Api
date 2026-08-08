@@ -65,7 +65,7 @@ describe('PhongService', () => {
       ]);
       const result = await service.findAll();
       expect(result).toEqual([
-        { ...MOCK_ITEM, HopDong: [], loaiPhong: null, giahientai: 0 },
+        { ...MOCK_ITEM, HopDong: [], loaiPhong: null, giahientai: 0, soNguoiHienTai: 0 },
       ]);
       expect(mockPrisma.phong.findMany).toHaveBeenCalledTimes(1);
     });
