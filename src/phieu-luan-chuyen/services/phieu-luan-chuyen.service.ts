@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ThongKeSnapshotService } from '../../thong-ke/services/thong-ke-snapshot.service';
 import { CreateChiTietLuanChuyenDto } from '../dto/create-phieu-luan-chuyen.dto';
@@ -11,29 +17,231 @@ export class PhieuLuanChuyenService {
     private thongKeSnapshot: ThongKeSnapshotService,
   ) { }
 
+  // async create(dto: CreateChiTietLuanChuyenDto) {
+  //   return await this.prisma.$transaction(async (tx) => {
+  //     const created = await tx.phieuLuanChuyen.create({
+  //       data: {
+  //         hopDongId: dto.hopDongId,
+  //         phongMoiId: dto.phongMoiId,
+  //         tuNgay: dto.tuNgay ? new Date(dto.tuNgay) : null,
+  //         denNgay: dto.denNgay ? new Date(dto.denNgay) : null,
+  //         lyDoLuanChuyen: dto.lyDoLuanChuyen,
+  //         chiPhi: dto.chiPhi,
+  //         ghiChu: dto.ghiChu,
+  //       },
+  //     });
+
+  //     await this.thongKeSnapshot.invalidateAll(tx);
+
+  //     return {
+  //       success: true,
+  //       message: 'Tạo phiếu luân chuyển thành công!',
+  //       data: created,
+  //     };
+  //   });
+  // }
+
   async create(dto: CreateChiTietLuanChuyenDto) {
-    return await this.prisma.$transaction(async (tx) => {
-      const created = await tx.phieuLuanChuyen.create({
-        data: {
-          hopDongId: dto.hopDongId,
-          phongMoiId: dto.phongMoiId,
-          tuNgay: dto.tuNgay ? new Date(dto.tuNgay) : null,
-          denNgay: dto.denNgay ? new Date(dto.denNgay) : null,
-          lyDoLuanChuyen: dto.lyDoLuanChuyen,
-          chiPhi: dto.chiPhi,
-          ghiChu: dto.ghiChu,
+  return await this.prisma.$transaction(async (tx) => {
+    // =========================================================
+    // 1. Lấy hợp đồng
+    // =========================================================
+    const hopDong = await tx.hopDong.findFirst({
+      where: {
+        hopDongId: dto.hopDongId,
+        isDelete: false,
+      },
+      select: {
+        hopDongId: true,
+        phongId: true,
+        trangThai: true,
+      },
+    });
+
+    if (!hopDong) {
+      throw new NotFoundException(
+        `Không tìm thấy hợp đồng ${dto.hopDongId}`,
+      );
+    }
+
+    if (hopDong.phongId == null) {
+      throw new NotFoundException(
+        `Hợp đồng ${dto.hopDongId} chưa có phòng`,
+      );
+    }
+
+    // =========================================================
+    // 2. Không cho tạo phiếu thứ 2 khi phiếu hiện tại còn hiệu lực
+    // =========================================================
+    const phieuDangLuanChuyen =
+      await this.layPhieuDangLuanChuyen(
+        tx,
+        dto.hopDongId,
+      );
+
+    if (phieuDangLuanChuyen) {
+      const denNgay = phieuDangLuanChuyen.denNgay;
+
+      const ngayKetThuc = denNgay
+        ? new Date(denNgay).toLocaleDateString('vi-VN')
+        : null;
+
+      const tenPhongMoi =
+        phieuDangLuanChuyen.phongMoi?.tenPhong ?? 'phòng khác';
+
+      throw new ConflictException(
+        ngayKetThuc
+          ? `Người thuộc hợp đồng này đang luân chuyển sang phòng ${tenPhongMoi} và còn hiệu lực đến ngày ${ngayKetThuc}. Không thể tạo phiếu luân chuyển mới.`
+          : `Người thuộc hợp đồng này đang luân chuyển sang phòng ${tenPhongMoi} và chưa có ngày kết thúc. Không thể tạo phiếu luân chuyển mới.`,
+      );
+    }
+
+    // =========================================================
+    // 3. Phòng mới bắt buộc khác phòng gốc
+    // =========================================================
+    if (
+      dto.phongMoiId != null &&
+      dto.phongMoiId === hopDong.phongId
+    ) {
+      throw new ConflictException(
+        'Phòng mới phải khác phòng hiện tại của hợp đồng.',
+      );
+    }
+
+    // =========================================================
+    // 4. Kiểm tra phòng mới tồn tại
+    // =========================================================
+    if (dto.phongMoiId != null) {
+      const phongMoi = await tx.phong.findFirst({
+        where: {
+          phongId: dto.phongMoiId,
+          isDelete: false,
+        },
+        select: {
+          phongId: true,
+          tenPhong: true,
+          trangThai: true,
         },
       });
 
-      await this.thongKeSnapshot.invalidateAll(tx);
+      if (!phongMoi) {
+        throw new NotFoundException(
+          `Không tìm thấy phòng mới #${dto.phongMoiId}`,
+        );
+      }
+    }
 
-      return {
-        success: true,
-        message: 'Tạo phiếu luân chuyển thành công!',
-        data: created,
-      };
+    // =========================================================
+    // 5. TẠO PHIẾU TRƯỚC
+    // =========================================================
+    const created = await tx.phieuLuanChuyen.create({
+      data: {
+        hopDongId: dto.hopDongId,
+        phongMoiId: dto.phongMoiId,
+        tuNgay: dto.tuNgay
+          ? new Date(dto.tuNgay)
+          : null,
+        denNgay: dto.denNgay
+          ? new Date(dto.denNgay)
+          : null,
+        lyDoLuanChuyen: dto.lyDoLuanChuyen,
+        chiPhi: dto.chiPhi,
+        ghiChu: dto.ghiChu,
+      },
     });
+
+    console.log(
+      '>>> ĐÃ TẠO PHIẾU LUÂN CHUYỂN:',
+      created,
+    );
+
+  
+    await this.capNhatTrangThaiPhong(
+      tx,
+      hopDong.phongId,
+    );
+
+if (
+  dto.phongMoiId != null &&
+  dto.phongMoiId !== hopDong.phongId
+) {
+  // =========================================================
+  // Kiểm tra phiếu mới có đang hiệu lực ngay hôm nay hay không
+  // =========================================================
+  const now = new Date();
+
+  const homNay = new Date(
+    Date.UTC(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    ),
+  );
+
+  const phieuMoiDangHieuLuc =
+    created.tuNgay != null &&
+    new Date(created.tuNgay) <= homNay &&
+    (
+      created.denNgay == null ||
+      new Date(created.denNgay) >= homNay
+    );
+
+  // =========================================================
+  // Nếu người đã chuyển sang phòng mới ngay hôm nay
+  // thì phòng mới đang được sử dụng.
+
+  if (phieuMoiDangHieuLuc) {
+    await tx.phong.update({
+      where: {
+        phongId: dto.phongMoiId,
+      },
+      data: {
+        trangThai: 1,
+      },
+    });
+
+    console.log(
+      '>>> PHÒNG MỚI ĐANG THUÊ:',
+      dto.phongMoiId,
+    );
+  } else {
+    // Phiếu bắt đầu trong tương lai hoặc đã kết thúc
+    // thì tính lại trạng thái phòng theo nghiệp vụ.
+    await this.capNhatTrangThaiPhong(
+      tx,
+      dto.phongMoiId,
+    );
   }
+
+  const phongMoiSauKhiCapNhat =
+    await tx.phong.findUnique({
+      where: {
+        phongId: dto.phongMoiId,
+      },
+      select: {
+        phongId: true,
+        tenPhong: true,
+        trangThai: true,
+      },
+    });
+
+  console.log(
+    '>>> PHÒNG MỚI SAU KHI CẬP NHẬT:',
+    phongMoiSauKhiCapNhat,
+  );
+}
+    
+
+    await this.thongKeSnapshot.invalidateAll(tx);
+
+    return {
+      success: true,
+      message: 'Tạo phiếu luân chuyển thành công!',
+      data: created,
+    };
+  });
+}
+ 
 
   async findAll() {
     const list = await this.prisma.phieuLuanChuyen.findMany({
@@ -67,20 +275,290 @@ export class PhieuLuanChuyenService {
     });
   }
 
-  /**
-   * Đếm số người đang ở 1 phòng, cộng dồn qua TẤT CẢ hợp đồng hiệu lực (trangThai = 1)
-   * gắn với phòng đó (vì 1 phòng có thể có nhiều hợp đồng cùng lúc).
-   */
-  private async demSoNguoiDangO(phongId?: number | null): Promise<number> {
-    if (!phongId) return 0;
-    // return this.prisma.hopDongNguoiThue.count({
-    //   where: {
-    //     isDelete: false,
-    //     hopDong: { phongId, isDelete: false, trangThai: 1 },
-    //   },
-    // });
-    return 0;
+
+  private async demSoNguoiDangO(
+    prisma: any,
+    phongId?: number | null,
+  ): Promise<number> {
+    if (!phongId) {
+      return 0;
+    }
+
+    const dsHopDong = await prisma.hopDong.findMany({
+      where: {
+        phongId,
+        isDelete: false,
+        trangThai: 1,
+      },
+      select: {
+        hopDongId: true,
+        nguoiOGhep: {
+          where: {
+            isDelete: false,
+          },
+          select: {
+            cccd: true,
+          },
+        },
+      },
+    });
+
+    let soNguoi = 0;
+
+    for (const hopDong of dsHopDong) {
+      soNguoi += 1 + hopDong.nguoiOGhep.length;
+    }
+
+    const homNay = new Date();
+    homNay.setHours(0, 0, 0, 0);
+
+    const dsLuanChuyenDen =
+      await prisma.phieuLuanChuyen.findMany({
+        where: {
+          phongMoiId: phongId,
+          isDelete: false,
+          tuNgay: {
+            lte: homNay,
+          },
+          OR: [
+            {
+              denNgay: null,
+            },
+            {
+              denNgay: {
+                gte: homNay,
+              },
+            },
+          ],
+        },
+        include: {
+          hopDong: {
+            select: {
+              hopDongId: true,
+              isDelete: true,
+              trangThai: true,
+              nguoiOGhep: {
+                where: {
+                  isDelete: false,
+                },
+                select: {
+                  cccd: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+    for (const phieu of dsLuanChuyenDen) {
+      if (
+        !phieu.hopDong.isDelete &&
+        phieu.hopDong.trangThai === 1
+      ) {
+        soNguoi += 1 + phieu.hopDong.nguoiOGhep.length;
+      }
+    }
+
+    return soNguoi;
   }
+
+  private async capNhatTrangThaiPhong(
+    tx: Prisma.TransactionClient,
+    phongId: number,
+  ): Promise<void> {
+    const homNay = new Date();
+    homNay.setUTCHours(0, 0, 0, 0);
+
+    const dsHopDong = await tx.hopDong.findMany({
+      where: {
+        phongId,
+        isDelete: false,
+        trangThai: 1,
+      },
+      select: {
+        hopDongId: true,
+      },
+    });
+
+    const dsLuanChuyenRa = await tx.phieuLuanChuyen.findMany({
+      where: {
+        hopDongId: {
+          in: dsHopDong.map((hd) => hd.hopDongId),
+        },
+        isDelete: false,
+        tuNgay: {
+          lte: homNay,
+        },
+        OR: [
+          {
+            denNgay: null,
+          },
+          {
+            denNgay: {
+              gte: homNay,
+            },
+          },
+        ],
+      },
+      select: {
+        hopDongId: true,
+      },
+    });
+
+    const hopDongDangLuanChuyen = new Set(
+      dsLuanChuyenRa.map((item) => item.hopDongId),
+    );
+
+    const coHopDongDangO = dsHopDong.some(
+      (hd) => !hopDongDangLuanChuyen.has(hd.hopDongId),
+    );
+
+    if (coHopDongDangO) {
+      await tx.phong.update({
+        where: {
+          phongId,
+        },
+        data: {
+          trangThai: 1,
+        },
+      });
+
+      return;
+    }
+
+    const coLuanChuyenDen = await tx.phieuLuanChuyen.findFirst({
+      where: {
+        phongMoiId: phongId,
+        isDelete: false,
+
+        // Phiếu đã bắt đầu
+        tuNgay: {
+          lte: homNay,
+        },
+
+        // Chưa kết thúc hoặc vẫn còn hiệu lực
+        OR: [
+          {
+            denNgay: null,
+          },
+          {
+            denNgay: {
+              gte: homNay,
+            },
+          },
+        ],
+
+        // Hợp đồng vẫn còn tồn tại
+        hopDong: {
+          isDelete: false,
+          trangThai: 1,
+        },
+      },
+
+      select: {
+        chiTietLuanChuyenID: true,
+
+      },
+    });
+
+    if (coLuanChuyenDen) {
+      await tx.phong.update({
+        where: {
+          phongId,
+        },
+        data: {
+          trangThai: 1,
+        },
+      });
+
+      return;
+    }
+
+    if (dsHopDong.length > 0) {
+      await tx.phong.update({
+        where: {
+          phongId,
+        },
+        data: {
+          trangThai: 2,
+        },
+      });
+
+      return;
+    }
+
+    await tx.phong.update({
+      where: {
+        phongId,
+      },
+      data: {
+        trangThai: 0,
+      },
+    });
+  }
+
+  private async layPhieuDangLuanChuyen(
+    tx: Prisma.TransactionClient,
+    hopDongId: string,
+  ) {
+    const now = new Date();
+
+    const homNay = new Date(
+      Date.UTC(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+      ),
+    );
+
+    return await tx.phieuLuanChuyen.findFirst({
+      where: {
+        hopDongId,
+        isDelete: false,
+
+        tuNgay: {
+          lte: homNay,
+        },
+
+        OR: [
+          {
+            denNgay: null,
+          },
+          {
+            denNgay: {
+              gte: homNay,
+            },
+          },
+        ],
+      },
+
+      orderBy: {
+        chiTietLuanChuyenID: 'desc',
+      },
+
+      select: {
+        chiTietLuanChuyenID: true,
+        tuNgay: true,
+        denNgay: true,
+        phongMoiId: true,
+        phongMoi: {
+          select: {
+            tenPhong: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Tự động cập nhật trạng thái phòng cũ.
+   *
+   * 0 = Phòng trống
+   * 1 = Đang thuê
+   * 2 = Đang sửa
+   */
+
+
 
   /**
    * Kiểm tra 1 phòng có đang gắn ÍT NHẤT 1 hợp đồng hiệu lực hay không.
@@ -98,25 +576,52 @@ export class PhieuLuanChuyenService {
    */
   async getDsPhongCoTheLuanChuyen(phongHienTaiId: number) {
     const dsPhongKhac = await this.prisma.phong.findMany({
-      where: { isDelete: false, phongId: { not: phongHienTaiId } },
-      include: { loaiPhong: true },
+      where: {
+        isDelete: false,
+        phongId: {
+          not: phongHienTaiId,
+        },
+        trangThai: {
+          not: 2,
+        },
+      },
+      include: {
+        loaiPhong: true,
+      },
     });
 
-    return Promise.all(
+    const result = await Promise.all(
       dsPhongKhac.map(async (p) => {
-        const soNguoiDangO = await this.demSoNguoiDangO(p.phongId);
+        const soNguoiDangO = await this.demSoNguoiDangO(
+          this.prisma,
+          p.phongId,
+        );
+
         const sucChua = p.loaiPhong?.soNguoiToiDa ?? null;
-        const daCoHopDong = await this.coHopDongDangHieuLuc(p.phongId);
+
+        const soChoTrong =
+          sucChua != null
+            ? Math.max(sucChua - soNguoiDangO, 0)
+            : null;
+
+        const daCoHopDong =
+          await this.coHopDongDangHieuLuc(p.phongId);
 
         return {
           phongId: p.phongId,
           tenPhong: p.tenPhong,
           sucChua,
           soNguoiDangO,
-          soChoTrong: sucChua != null ? sucChua - soNguoiDangO : null,
+          soChoTrong,
           daCoHopDong,
         };
       }),
+    );
+
+    return result.filter(
+      (p) =>
+        p.soChoTrong == null ||
+        p.soChoTrong > 0,
     );
   }
 
@@ -149,102 +654,292 @@ export class PhieuLuanChuyenService {
   * chỉ lấy phiếu còn hiệu lực (chưa có đến ngày, hoặc đến ngày >= hôm nay),
   * mỗi phiếu "trải phẳng" theo từng người trong hợp đồng, kèm cờ isNguoiThueChinh.
   */
-  async getLuanChuyenPhongMoi(phongId: number) {
-    const homNay = new Date();
-    homNay.setHours(0, 0, 0, 0);
+  // async getLuanChuyenPhongMoi(phongId: number) {
+  //   const now = new Date();
 
-    const phong = await this.prisma.phong.findFirst({
-      where: { phongId, isDelete: false },
-    });
+  //   const homNay = new Date(
+  //     Date.UTC(
+  //       now.getFullYear(),
+  //       now.getMonth(),
+  //       now.getDate(),
+  //     ),
+  //   );
 
-    if (!phong) {
-      throw new NotFoundException(`Không tìm thấy phòng #${phongId}`);
-    }
+  //   const phong = await this.prisma.phong.findFirst({
+  //     where: { phongId, isDelete: false },
+  //   });
 
-    const list = await this.prisma.phieuLuanChuyen.findMany({
-      where: {
-        isDelete: false,
-        phongMoiId: phongId,
-        OR: [
-          { denNgay: null },
-          { denNgay: { gte: homNay } },
-        ],
-      },
-      include: {
-        phongMoi: true,
-        hopDong: {
-          include: {
-            nguoiDaiDien: true,
-            nguoiOGhep: { where: { isDelete: false } },
+  //   if (!phong) {
+  //     throw new NotFoundException(`Không tìm thấy phòng #${phongId}`);
+  //   }
+
+  //   const list = await this.prisma.phieuLuanChuyen.findMany({
+  //     where: {
+  //       isDelete: false,
+  //       phongMoiId: phongId,
+  //       tuNgay: {
+  //         lte: homNay,
+  //       },
+  //       OR: [
+  //         { denNgay: null },
+  //         { denNgay: { gte: homNay } },
+  //       ],
+  //     },
+  //     include: {
+  //       phongMoi: true,
+  //       hopDong: {
+  //         include: {
+  //           nguoiDaiDien: true,
+  //           nguoiOGhep: { where: { isDelete: false } },
+  //         },
+  //       },
+  //     },
+  //     orderBy: { chiTietLuanChuyenID: 'desc' },
+  //   });
+
+  //   const result = list.flatMap((phieu) => {
+  //     const { hopDong, ...phieuRest } = phieu;
+  //     if (!hopDong) return [];
+
+  //     const { nguoiDaiDien, nguoiOGhep, ...hopDongRest } = hopDong;
+
+  //     const dsNguoi = [
+  //       ...(nguoiDaiDien && !nguoiDaiDien.isDelete
+  //         ? [
+  //           {
+  //             isNguoiThueChinh: true,
+  //             hoTen: nguoiDaiDien.hoTen,
+  //             sdt: nguoiDaiDien.sdt,
+  //           },
+  //         ]
+  //         : []),
+  //       ...nguoiOGhep.map((ng) => ({
+  //         isNguoiThueChinh: false,
+  //         hoTen: ng.hoTen,
+  //         sdt: ng.sdt,
+  //       })),
+  //     ];
+
+  //     return dsNguoi.map((nguoi) => ({
+  //       phieuLuanChuyen: {
+  //         ...phieuRest,
+  //         hopDong: hopDongRest,
+  //       },
+  //       ...nguoi,
+  //     }));
+  //   });
+
+  //   return result;
+  // }
+
+async getLuanChuyenPhongMoi(phongId: number) {
+  const homNay = new Date();
+  homNay.setHours(0, 0, 0, 0);
+
+  const phong = await this.prisma.phong.findFirst({
+    where: { phongId, isDelete: false },
+  });
+
+  if (!phong) {
+    throw new NotFoundException(`Không tìm thấy phòng #${phongId}`);
+  }
+
+  const list = await this.prisma.phieuLuanChuyen.findMany({
+    where: {
+      isDelete: false,
+      phongMoiId: phongId,
+      OR: [
+        {
+          denNgay: null,
+        },
+        {
+          denNgay: {
+            gte: homNay,
+          },
+        },
+      ],
+    },
+    include: {
+      phongMoi: true,
+      hopDong: {
+        include: {
+          nguoiDaiDien: true,
+          nguoiOGhep: {
+            where: {
+              isDelete: false,
+            },
           },
         },
       },
-      orderBy: { chiTietLuanChuyenID: 'desc' },
-    });
+    },
+    orderBy: {
+      chiTietLuanChuyenID: 'desc',
+    },
+  });
 
-    const result = list.flatMap((phieu) => {
-      const { hopDong, ...phieuRest } = phieu;
-      if (!hopDong) return [];
+  const result = list.flatMap((phieu) => {
+    const { hopDong, ...phieuRest } = phieu;
 
-      const { nguoiDaiDien, nguoiOGhep, ...hopDongRest } = hopDong;
+    if (!hopDong) return [];
 
-      const dsNguoi = [
-        ...(nguoiDaiDien && !nguoiDaiDien.isDelete
-          ? [
+    const { nguoiDaiDien, nguoiOGhep, ...hopDongRest } = hopDong;
+
+    const dsNguoi = [
+      ...(nguoiDaiDien && !nguoiDaiDien.isDelete
+        ? [
             {
               isNguoiThueChinh: true,
               hoTen: nguoiDaiDien.hoTen,
               sdt: nguoiDaiDien.sdt,
             },
           ]
-          : []),
-        ...nguoiOGhep.map((ng) => ({
-          isNguoiThueChinh: false,
-          hoTen: ng.hoTen,
-          sdt: ng.sdt,
-        })),
-      ];
+        : []),
 
-      return dsNguoi.map((nguoi) => ({
-        ...phieuRest,
-        hopDong: hopDongRest,
-        ...nguoi,
-      }));
-    });
+      ...nguoiOGhep.map((ng) => ({
+        isNguoiThueChinh: false,
+        hoTen: ng.hoTen,
+        sdt: ng.sdt,
+      })),
+    ];
 
-    return result;
-  }
+    return dsNguoi.map((nguoi) => ({
+      ...phieuRest,
+      hopDong: hopDongRest,
+      ...nguoi,
+    }));
+  });
 
-  
-  async update(id: number, dto: UpdateChiTietLuanChuyenDto) {
+  return result;
+}
+
+
+  async update(
+    id: number,
+    dto: UpdateChiTietLuanChuyenDto,
+  ) {
     const existing = await this.prisma.phieuLuanChuyen.findFirst({
-      where: { chiTietLuanChuyenID: id, isDelete: false },
+      where: {
+        chiTietLuanChuyenID: id,
+        isDelete: false,
+      },
+      include: {
+        hopDong: {
+          select: {
+            hopDongId: true,
+            phongId: true,
+          },
+        },
+        phongMoi: {
+          select: {
+            phongId: true,
+          },
+        },
+      },
     });
-    if (!existing) throw new NotFoundException(`Không tìm thấy phiếu luân chuyển #${id}`);
+
+    const homNay = new Date();
+    homNay.setHours(0, 0, 0, 0);
+
+    const dangHieuLuc =
+      existing.tuNgay != null &&
+      new Date(existing.tuNgay) <= homNay &&
+      (
+        existing.denNgay == null ||
+        new Date(existing.denNgay) >= homNay
+      );
+
+
+    if (
+      dto.hopDongId !== undefined &&
+      dto.hopDongId !== existing.hopDongId
+    ) {
+      throw new ConflictException(
+        'Không thể đổi hợp đồng của phiếu luân chuyển hiện tại.',
+      );
+    }
+
+    if (
+      dto.phongMoiId !== undefined &&
+      dto.phongMoiId !== existing.phongMoiId
+    ) {
+      throw new ConflictException(
+        'Không thể đổi phòng của phiếu luân chuyển hiện tại. ' +
+        'Vui lòng hoàn thành phiếu hiện tại rồi tạo phiếu mới.',
+      );
+    }
+
+    const tuNgayMoi =
+      dto.tuNgay !== undefined
+        ? dto.tuNgay
+          ? new Date(dto.tuNgay)
+          : null
+        : existing.tuNgay;
+
+    const denNgayMoi =
+      dto.denNgay !== undefined
+        ? dto.denNgay
+          ? new Date(dto.denNgay)
+          : null
+        : existing.denNgay;
+
+    if (
+      tuNgayMoi != null &&
+      denNgayMoi != null &&
+      denNgayMoi < tuNgayMoi
+    ) {
+      throw new ConflictException(
+        'Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu.',
+      );
+    }
 
     return await this.prisma.$transaction(async (tx) => {
       const updated = await tx.phieuLuanChuyen.update({
-        where: { chiTietLuanChuyenID: id },
+        where: {
+          chiTietLuanChuyenID: id,
+        },
         data: {
-          ...(dto.hopDongId !== undefined && { hopDongId: dto.hopDongId }),
-          ...(dto.phongMoiId !== undefined && { phongMoiId: dto.phongMoiId }),
           ...(dto.tuNgay !== undefined && {
-            tuNgay: dto.tuNgay ? new Date(dto.tuNgay) : null,
+            tuNgay: dto.tuNgay
+              ? new Date(dto.tuNgay)
+              : null,
           }),
+
           ...(dto.denNgay !== undefined && {
-            denNgay: dto.denNgay ? new Date(dto.denNgay) : null,
+            denNgay: dto.denNgay
+              ? new Date(dto.denNgay)
+              : null,
           }),
+
           ...(dto.lyDoLuanChuyen !== undefined && {
             lyDoLuanChuyen: dto.lyDoLuanChuyen,
           }),
+
           ...(dto.chiPhi !== undefined && {
             chiPhi: dto.chiPhi,
           }),
+
           ...(dto.ghiChu !== undefined && {
             ghiChu: dto.ghiChu,
           }),
         },
       });
+
+      if (existing.hopDong?.phongId != null) {
+        await this.capNhatTrangThaiPhong(
+          tx,
+          existing.hopDong.phongId,
+        );
+      }
+
+      if (
+        existing.phongMoi?.phongId != null &&
+        existing.phongMoi.phongId !== existing.hopDong?.phongId
+      ) {
+        await this.capNhatTrangThaiPhong(
+          tx,
+          existing.phongMoi.phongId,
+        );
+      }
 
       await this.thongKeSnapshot.invalidateAll(tx);
 
@@ -258,15 +953,73 @@ export class PhieuLuanChuyenService {
 
   async remove(id: number) {
     const existing = await this.prisma.phieuLuanChuyen.findFirst({
-      where: { chiTietLuanChuyenID: id, isDelete: false },
+      where: {
+        chiTietLuanChuyenID: id,
+        isDelete: false,
+      },
+      include: {
+        hopDong: {
+          select: {
+            phongId: true,
+          },
+        },
+        phongMoi: {
+          select: {
+            phongId: true,
+          },
+        },
+      },
     });
-    if (!existing) throw new NotFoundException(`Không tìm thấy phiếu luân chuyển #${id}`);
+
+    if (!existing) {
+      throw new NotFoundException(
+        `Không tìm thấy phiếu luân chuyển #${id}`,
+      );
+    }
+
+    const homNay = new Date();
+    homNay.setHours(0, 0, 0, 0);
+
+    const dangHieuLuc =
+      existing.tuNgay != null &&
+      new Date(existing.tuNgay) <= homNay &&
+      (
+        existing.denNgay == null ||
+        new Date(existing.denNgay) >= homNay
+      );
+
+    if (dangHieuLuc) {
+      throw new ConflictException(
+        'Phiếu luân chuyển đang còn hiệu lực nên không được xóa. Vui lòng cập nhật ngày kết thúc trước.',
+      );
+    }
 
     return await this.prisma.$transaction(async (tx) => {
       await tx.phieuLuanChuyen.update({
-        where: { chiTietLuanChuyenID: id },
-        data: { isDelete: true },
+        where: {
+          chiTietLuanChuyenID: id,
+        },
+        data: {
+          isDelete: true,
+        },
       });
+
+      if (existing.hopDong?.phongId != null) {
+        await this.capNhatTrangThaiPhong(
+          tx,
+          existing.hopDong.phongId,
+        );
+      }
+
+      if (
+        existing.phongMoi?.phongId != null &&
+        existing.phongMoi.phongId !== existing.hopDong?.phongId
+      ) {
+        await this.capNhatTrangThaiPhong(
+          tx,
+          existing.phongMoi.phongId,
+        );
+      }
 
       await this.thongKeSnapshot.invalidateAll(tx);
 
@@ -277,4 +1030,37 @@ export class PhieuLuanChuyenService {
       };
     });
   }
+
+  @Cron('0 0 * * *')
+  async handleCapNhatTrangThaiPhongTheoNgay() {
+    try {
+      const dsPhong = await this.prisma.phong.findMany({
+        where: {
+          isDelete: false,
+        },
+        select: {
+          phongId: true,
+        },
+      });
+
+      for (const phong of dsPhong) {
+        await this.prisma.$transaction(async (tx) => {
+          await this.capNhatTrangThaiPhong(
+            tx,
+            phong.phongId,
+          );
+        });
+      }
+
+      console.log(
+        'Tự động cập nhật trạng thái phòng theo luân chuyển thành công!',
+      );
+    } catch (e) {
+      console.error(
+        'Lỗi tự động cập nhật trạng thái phòng theo luân chuyển:',
+        e,
+      );
+    }
+  }
+
 }
