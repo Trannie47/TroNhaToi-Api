@@ -644,6 +644,7 @@ export class HoaDonPhongService {
         },
         phieuThuHangThang: {
           where: { isDelete: false },
+          orderBy: { ngayThu: 'desc' },
         },
       },
       orderBy: { ngayLap: 'desc' },
@@ -769,7 +770,7 @@ export class HoaDonPhongService {
             phong: true,
           },
         },
-        phieuThuHangThang: { where: { isDelete: false } },
+        phieuThuHangThang: { where: { isDelete: false }, orderBy: { ngayThu: 'desc' } },
       },
     });
 

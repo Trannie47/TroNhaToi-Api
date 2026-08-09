@@ -220,7 +220,7 @@ model HoaDonPhong {
 
 model PhieuThuHangThang {
   maPhieuThu  Int          @id @default(autoincrement())
-  ngayThu     DateTime?    @db.Date
+  ngayThu     DateTime?    @default(now())
   soTien      Decimal?     @db.Decimal(10, 2)
   ghiChu      String?      @db.Text
   maHoaDon     String?      @db.Char(23)
