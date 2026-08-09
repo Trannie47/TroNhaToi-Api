@@ -49,6 +49,7 @@ export class HopDongService {
     const rooms = await this.prisma.phong.findMany({
       where: {
         isDelete: false,
+        trangThai: { in: [0, 1] },
       },
       include: {
         loaiPhong: true,
@@ -64,15 +65,62 @@ export class HopDongService {
       },
     });
 
-    return rooms
-      .map((phong) => {
-        // Sức chứa hiện tại = tổng (1 đại diện + số người ở ghép) của từng hợp đồng đang hiệu lực/chờ hiệu lực
+    const homNay = this.ngayHomNayTheoLich();
+
+    const result = await Promise.all(
+      rooms.map(async (phong) => {
         let soNguoiHienTai = 0;
+
         for (const hopDong of phong.HopDong) {
           soNguoiHienTai += 1 + hopDong.nguoiOGhep.length;
         }
 
-        const soNguoiToiDa = phong.loaiPhong?.soNguoiToiDa ?? null;
+        const dsLuanChuyenDen =
+          await this.prisma.phieuLuanChuyen.findMany({
+            where: {
+              phongMoiId: phong.phongId,
+              isDelete: false,
+              tuNgay: {
+                lte: homNay,
+              },
+              OR: [
+                {
+                  denNgay: null,
+                },
+                {
+                  denNgay: {
+                    gte: homNay,
+                  },
+                },
+              ],
+              hopDong: {
+                isDelete: false,
+                trangThai: 1,
+              },
+            },
+            select: {
+              hopDong: {
+                select: {
+                  nguoiOGhep: {
+                    where: {
+                      isDelete: false,
+                    },
+                    select: {
+                      cccd: true,
+                    },
+                  },
+                },
+              },
+            },
+          });
+
+        for (const phieu of dsLuanChuyenDen) {
+          soNguoiHienTai +=
+            1 + phieu.hopDong.nguoiOGhep.length;
+        }
+
+        const soNguoiToiDa =
+          phong.loaiPhong?.soNguoiToiDa ?? null;
 
         return {
           id: phong.phongId,
@@ -82,15 +130,20 @@ export class HopDongService {
           soNguoiToiDa,
           soChoConLai:
             soNguoiToiDa !== null
-              ? Math.max(soNguoiToiDa - soNguoiHienTai, 0)
+              ? Math.max(
+                soNguoiToiDa - soNguoiHienTai,
+                0,
+              )
               : null,
         };
-      })
-      .filter(
-        (phong) =>
-          phong.soNguoiToiDa !== null &&
-          phong.soNguoiHienTai < phong.soNguoiToiDa,
-      );
+      }),
+    );
+
+    return result.filter(
+      (phong) =>
+        phong.soNguoiToiDa !== null &&
+        phong.soNguoiHienTai < phong.soNguoiToiDa,
+    );
   }
 
   async create(dto: CreateHopDongDto, listUrlImage: string[]) {
@@ -125,7 +178,15 @@ export class HopDongService {
     });
 
     if (!infoPhong || infoPhong.isDelete) {
-      throw new BadRequestException('Không tìm thấy phòng thuê hợp lệ để lập hợp đồng.');
+      throw new BadRequestException(
+        'Không tìm thấy phòng thuê hợp lệ để lập hợp đồng.',
+      );
+    }
+
+    if (infoPhong.trangThai === 2) {
+      throw new BadRequestException(
+        'Phòng đang sửa chữa do người thuê đang luân chuyển, không thể tạo hợp đồng mới.',
+      );
     }
 
     const ngayKy = this.parseNgayTheoLich(dto.ngayKy);
@@ -187,14 +248,69 @@ export class HopDongService {
       },
     });
 
-    let soNguoiDangOTrongPhong = 1 + danhSachNguoiOGhep.length; // hợp đồng sắp tạo
+    let soNguoiDangOTrongPhong = 1 + danhSachNguoiOGhep.length;
+
+    // Người thuộc các hợp đồng đang gắn với phòng.
+    // Người đang luân chuyển vẫn giữ suất của phòng gốc.
     for (const hopDong of hopDongDangHoatDong) {
       soNguoiDangOTrongPhong += 1 + hopDong.nguoiOGhep.length;
     }
 
-    if (soNguoiDangOTrongPhong > soNguoiToiDa) {
-      throw new BadRequestException('Số lượng người thuê vượt quá sức chứa của phòng.');
+    // Người đang luân chuyển từ hợp đồng khác tới phòng này
+    // cũng chiếm chỗ thực tế tại phòng tạm.
+    const dsLuanChuyenDen = await prisma.phieuLuanChuyen.findMany({
+      where: {
+        phongMoiId: dto.phongId,
+        isDelete: false,
+
+        tuNgay: {
+          lte: homNay,
+        },
+
+        OR: [
+          {
+            denNgay: null,
+          },
+          {
+            denNgay: {
+              gte: homNay,
+            },
+          },
+        ],
+
+        hopDong: {
+          isDelete: false,
+          trangThai: 1,
+        },
+      },
+
+      select: {
+        hopDong: {
+          select: {
+            nguoiOGhep: {
+              where: {
+                isDelete: false,
+              },
+              select: {
+                cccd: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    for (const phieu of dsLuanChuyenDen) {
+      soNguoiDangOTrongPhong +=
+        1 + phieu.hopDong.nguoiOGhep.length;
     }
+
+    if (soNguoiDangOTrongPhong > soNguoiToiDa) {
+      throw new BadRequestException(
+        'Số lượng người thuê vượt quá sức chứa của phòng.',
+      );
+    }
+
 
     const countHopDongCuaPhong = await prisma.hopDong.count({
       where: { phongId: dto.phongId },
@@ -528,10 +644,7 @@ export class HopDongService {
         }
       }
 
-      await prisma.phong.update({
-        where: { phongId },
-        data: { trangThai: 1 },
-      });
+      await this.capNhatTrangThaiPhong(prisma, phongId);
 
       await prisma.nguoiThue.update({
         where: { idnt: idntDaiDienMoi },
@@ -769,23 +882,10 @@ export class HopDongService {
         data: { isDelete: true },
       });
 
-      //ktra Xem phòng này còn bất kỳ hợp đồng nào khác không
-      const conHopDongKhacCuaPhong = await prisma.hopDong.findFirst({
-        where: {
-          phongId: phongId,
-          hopDongId: { not: id }, // Loại trừ hợp đồng đang hủy
-          isDelete: false,
-          trangThai: { in: [0, 1] }, // Vẫn còn hợp đồng 0 hoặc 1
-        },
-      });
 
       // Nếu hoàn toàn không còn hợp đồng nào khác dính tới phòng này -> reset trạng thái phòng về 0 (Trống)
-      if (!conHopDongKhacCuaPhong) {
-        await prisma.phong.update({
-          where: { phongId: phongId },
-          data: { trangThai: 0 },
-        });
-      }
+
+      await this.capNhatTrangThaiPhong(prisma, phongId);
 
       // Người ở ghép của hợp đồng này giữ nguyên (không đổi isDelete) để còn lịch sử ai từng ở đây.
       // Nếu người đại diện không còn hợp đồng nào khác đang hoạt động/chờ hiệu lực -> reset trạng thái
@@ -909,23 +1009,8 @@ export class HopDongService {
         },
       });
 
-      //KIỂM TRA PHÒNG: Xem phòng này còn hợp đồng nào khác [0, 1] không
-      const conHopDongKhacCuaPhong = await prisma.hopDong.findFirst({
-        where: {
-          phongId: phongId,
-          hopDongId: { not: id },
-          isDelete: false,
-          trangThai: { in: [0, 1] },
-        },
-      });
-
       // Nếu không còn -> Trả phòng về trống (trangThai = 0)
-      if (!conHopDongKhacCuaPhong) {
-        await prisma.phong.update({
-          where: { phongId: phongId },
-          data: { trangThai: 0 },
-        });
-      }
+      await this.capNhatTrangThaiPhong(prisma, phongId);
 
       // Nếu người đại diện không còn hợp đồng nào khác đang hoạt động/chờ hiệu lực -> reset trạng thái
       const conHopDongKhacCuaDaiDien = await prisma.hopDong.findFirst({
@@ -992,6 +1077,76 @@ export class HopDongService {
 
     return chuaDenSinhNhat ? tuoi - 1 : tuoi;
   }
+  private async capNhatTrangThaiPhong(
+    prisma: any,
+    phongId: number,
+  ): Promise<void> {
+    const homNay = this.ngayHomNayTheoLich();
+
+    // Lấy tất cả hợp đồng còn hoạt động/chờ hiệu lực của phòng
+    const dsHopDong = await prisma.hopDong.findMany({
+      where: {
+        phongId,
+        isDelete: false,
+        trangThai: { in: [0, 1] },
+      },
+      select: {
+        hopDongId: true,
+      },
+    });
+
+    // Không còn hợp đồng nào
+    if (dsHopDong.length === 0) {
+      await prisma.phong.update({
+        where: { phongId },
+        data: { trangThai: 0 },
+      });
+      return;
+    }
+
+    // Kiểm tra có hợp đồng nào đang luân chuyển còn hiệu lực hay không
+    const dsHopDongId = dsHopDong.map((hd: any) => hd.hopDongId);
+
+    const dsLuanChuyen = await prisma.phieuLuanChuyen.findMany({
+      where: {
+        hopDongId: { in: dsHopDongId },
+        isDelete: false,
+        tuNgay: { lte: homNay },
+        OR: [
+          { denNgay: null },
+          { denNgay: { gte: homNay } },
+        ],
+      },
+      select: {
+        hopDongId: true,
+      },
+    });
+
+    const hopDongDangLuanChuyen = new Set(
+      dsLuanChuyen.map((item: any) => item.hopDongId),
+    );
+
+    // Có ít nhất 1 hợp đồng vẫn đang ở phòng
+    const coNguoiDangO = dsHopDong.some(
+      (hd: any) => !hopDongDangLuanChuyen.has(hd.hopDongId),
+    );
+
+    if (coNguoiDangO) {
+      // Vẫn còn người ở phòng
+      await prisma.phong.update({
+        where: { phongId },
+        data: { trangThai: 1 },
+      });
+      return;
+    }
+
+    // Tất cả hợp đồng của phòng đều đang luân chuyển
+    await prisma.phong.update({
+      where: { phongId },
+      data: { trangThai: 2 },
+    });
+  }
+
 
   private parseNgayTheoLich(value?: string | Date | null): Date {
     if (!value) {
