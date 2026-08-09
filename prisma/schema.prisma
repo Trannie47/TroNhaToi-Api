@@ -365,6 +365,7 @@ model SuaChua {
   nguyenNhan    String?        @db.Text
   ngaySuaChua   DateTime?      @db.Date
   isDelete      Boolean        @default(false)
+  trangThaiThongBao Int        @default(0) // 0 = Bình thường, 1 = Gấp (còn ≤ 7 ngày phải xử lý)
   hoadonsuachua HoaDonSuaChua?
   thietbi       ThietBi        @relation(fields: [thietBiId], references: [thietBiId], onDelete: Restrict, onUpdate: Restrict, map: "suaChua_FK2")
   lapRap        LapRap?        @relation(fields: [lapRapId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "suaChua_FK")

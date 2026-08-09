@@ -29,4 +29,12 @@ export class ThongBaoGateway implements OnGatewayConnection, OnGatewayDisconnect
       payload: notifications,
     });
   }
+
+  sendSuaChuaNotifications(suaChuaList: any[]) {
+    this.server.emit('thong-bao-moi', {
+      type: 'SUA_CHUA_KHAN_CAP',
+      count: suaChuaList.length,
+      payload: suaChuaList,
+    });
+  }
 }

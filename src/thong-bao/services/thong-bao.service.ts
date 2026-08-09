@@ -7,7 +7,7 @@ export class ThongBaoService {
   constructor(
     private prisma: PrismaService,
     private gateway: ThongBaoGateway,
-  ) {}
+  ) { }
 
   findAll() {
     return this.prisma.thongBao.findMany({
@@ -76,7 +76,60 @@ export class ThongBaoService {
     });
   }
 
+  /**
+   * Tạo/cập nhật thông báo cho sự cố sửa chữa khẩn cấp (quá SO_NGAY_GAP ngày chưa xử lý).
+   * Dùng chung bảng ThongBao — vì model không có field suaChuaId riêng,
+   * mượn tạm cột hopDongId để lưu id của SuaChua theo định dạng "SUACHUA_{id}"
+   * (tránh đụng dữ liệu thật của hopDongId, vẫn tận dụng được cơ chế findFirst chống trùng).
+   */
+  async upsertSuaChuaNotification(
+    suaChuaId: number,
+    soNgayTre: number,
+    tenThietBi: string,
+    tenPhong: string,
+    nguyenNhan: string | null,
+  ) {
+    const tieuDe = `Sự cố sửa chữa cần xử lý gấp`;
+    const noiDung = [
+      `Sự cố #${suaChuaId}${tenThietBi ? ` - Thiết bị ${tenThietBi}` : ''}${tenPhong ? ` (Phòng ${tenPhong})` : ''} đã quá hạn xử lý ${soNgayTre} ngày.`,
+      nguyenNhan ? `Nguyên nhân: ${nguyenNhan}.` : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    const maDinhDanh = `SUACHUA_${suaChuaId}`;
+
+    const existing = await this.prisma.thongBao.findFirst({
+      where: {
+        hopDongId: maDinhDanh,
+        loai: 'SUA_CHUA_KHAN_CAP',
+        daDoc: false,
+      },
+    });
+
+    if (existing) {
+      return this.prisma.thongBao.update({
+        where: { id: existing.id },
+        data: { soNgayCon: soNgayTre, noiDung, taoLuc: new Date() },
+      });
+    }
+
+    return this.prisma.thongBao.create({
+      data: {
+        tieuDe,
+        noiDung,
+        loai: 'SUA_CHUA_KHAN_CAP',
+        hopDongId: maDinhDanh,
+        soNgayCon: soNgayTre,
+      },
+    });
+  }
+
   emit(notifications: any[]) {
     this.gateway.sendNotifications(notifications);
+  }
+
+  emitSuaChua(notifications: any[]) {
+    this.gateway.sendSuaChuaNotifications(notifications);
   }
 }

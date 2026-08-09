@@ -58,6 +58,13 @@ export class CreateSuaChuaDto {
   ngaySuaChua?: string;
 
   @ApiPropertyOptional({
+    description: 'Trạng thái thông báo: 0 = Bình thường, 1 = Gấp (còn ≤ 7 ngày phải xử lý)',
+  })
+  @IsOptional()
+  @IsInt()
+  trangThaiThongBao?: number;
+
+  @ApiPropertyOptional({
     description: 'Thông tin hóa đơn sửa chữa',
     type: CreateHoaDonSuaChuaInlineDto,
   })
