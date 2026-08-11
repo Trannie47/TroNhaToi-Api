@@ -11,41 +11,6 @@ export class PhongService {
     private thongKeSnapshotService: ThongKeSnapshotService,
   ) { }
 
-  // async findAll() {
-  //   const dsPhong = await this.prisma.phong.findMany({
-  //     where: { isDelete: false },
-  //     include:
-  //     {
-  //       loaiPhong: true,
-  //       HopDong: {
-  //         where: { isDelete: false, trangThai: { not: 2 } },
-  //         include: {
-  //           nguoiOGhep: {
-  //             where: { isDelete: false },
-  //             select: { cccd: true },
-  //           },
-  //         },
-  //       }
-  //     },
-  //   });
-  //   return dsPhong.map((p) => {
-  //     const phong = p as any;
-  //     let giahientai = 0;
-  //     let soNguoiHienTai = 0;
-  //     const hdDangHieuLuc = phong.HopDong.filter((hd: any) => hd.trangThai === 1);
-  //     if (hdDangHieuLuc && hdDangHieuLuc.length > 0) {
-  //       giahientai = hdDangHieuLuc.reduce((sum, hd) => sum + Number(hd.giaPhongThucTe || 0), 0);
-  //       soNguoiHienTai = hdDangHieuLuc.reduce((sum: number, hd: any) => sum + 1 + hd.nguoiOGhep.length, 0);
-  //     } else {
-  //       giahientai = phong.loaiPhong?.giaTien || 0;
-  //     }
-  //     return {
-  //       ...phong,
-  //       giahientai,
-  //       soNguoiHienTai,
-  //     }
-  //   });
-  // }
 
   async findAll() {
     const homNay = new Date();
@@ -403,32 +368,6 @@ export class PhongService {
             nguoiOGhep: { where: { isDelete: false } },
           },
         },
-        // phieuLuanChuyenDen: {
-        //   where: {
-        //     isDelete: false,
-
-        //     tuNgay: {
-        //       lte: homNay,
-        //     },
-
-        //     OR: [
-        //       { denNgay: null },
-        //       { denNgay: { gte: homNay } },
-        //     ],
-        //   },
-        //   include: {
-        //     hopDong: {
-        //       include: {
-        //         nguoiDaiDien: true,
-        //         nguoiOGhep: {
-        //           where: {
-        //             isDelete: false,
-        //           },
-        //         },
-        //       },
-        //     },
-        //   },
-        // },
 
 
         phieuLuanChuyenDen: {
