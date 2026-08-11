@@ -2,12 +2,14 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreatePhieuThuDienNuocDto } from '../dto/create-phieu-thu-dien-nuoc.dto';
 import { HoaDonDienNuocService } from '../../hoa-don-dien-nuoc/services/hoa-don-dien-nuoc.service';
+import { ThongKeSnapshotService } from '../../thong-ke/services/thong-ke-snapshot.service';
 
 @Injectable()
 export class PhieuThuDienNuocService {
   constructor(
     private prisma: PrismaService,
     private hoaDonDienNuoc: HoaDonDienNuocService,
+    private thongKeSnapshot: ThongKeSnapshotService,
   ) {}
 
   //LẬP PHIẾU THU ĐIỆN NƯỚC (THU 1 LẦN)
@@ -52,6 +54,9 @@ export class PhieuThuDienNuocService {
         },
       });
 
+      // Invalidate snapshot thống kê vì đã có phiếu thu mới / cập nhật số tiền
+      await this.thongKeSnapshot.invalidateAll(tx);
+
       return {
         success: true,
         message: 'Lập phiếu thu điện nước thành công!',
@@ -95,6 +100,9 @@ export class PhieuThuDienNuocService {
         },
         data: { TrangThai: 0 }, // Đưa về trạng thái nháp để có thể sửa hoặc chốt lại
       });
+
+      // Invalidate snapshot thống kê vì hóa đơn/phiếu thu đã bị rollback
+      await this.thongKeSnapshot.invalidateAll(tx);
 
       return {
         success: true,
