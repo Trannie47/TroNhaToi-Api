@@ -11,11 +11,49 @@ export class PhongService {
     private thongKeSnapshotService: ThongKeSnapshotService,
   ) { }
 
+  // async findAll() {
+  //   const dsPhong = await this.prisma.phong.findMany({
+  //     where: { isDelete: false },
+  //     include:
+  //     {
+  //       loaiPhong: true,
+  //       HopDong: {
+  //         where: { isDelete: false, trangThai: { not: 2 } },
+  //         include: {
+  //           nguoiOGhep: {
+  //             where: { isDelete: false },
+  //             select: { cccd: true },
+  //           },
+  //         },
+  //       }
+  //     },
+  //   });
+  //   return dsPhong.map((p) => {
+  //     const phong = p as any;
+  //     let giahientai = 0;
+  //     let soNguoiHienTai = 0;
+  //     const hdDangHieuLuc = phong.HopDong.filter((hd: any) => hd.trangThai === 1);
+  //     if (hdDangHieuLuc && hdDangHieuLuc.length > 0) {
+  //       giahientai = hdDangHieuLuc.reduce((sum, hd) => sum + Number(hd.giaPhongThucTe || 0), 0);
+  //       soNguoiHienTai = hdDangHieuLuc.reduce((sum: number, hd: any) => sum + 1 + hd.nguoiOGhep.length, 0);
+  //     } else {
+  //       giahientai = phong.loaiPhong?.giaTien || 0;
+  //     }
+  //     return {
+  //       ...phong,
+  //       giahientai,
+  //       soNguoiHienTai,
+  //     }
+  //   });
+  // }
+
   async findAll() {
+    const homNay = new Date();
+    homNay.setHours(0, 0, 0, 0);
+
     const dsPhong = await this.prisma.phong.findMany({
       where: { isDelete: false },
-      include:
-      {
+      include: {
         loaiPhong: true,
         HopDong: {
           where: { isDelete: false, trangThai: { not: 2 } },
@@ -25,25 +63,81 @@ export class PhongService {
               select: { cccd: true },
             },
           },
-        }
+        },
+        phieuLuanChuyenDen: {
+          where: {
+            isDelete: false,
+            OR: [
+              { denNgay: null },
+              { denNgay: { gte: homNay } },
+            ],
+          },
+          include: {
+            hopDong: {
+              include: {
+                nguoiDaiDien: true,
+                nguoiOGhep: { where: { isDelete: false } },
+              },
+            },
+          },
+        },
       },
     });
+
     return dsPhong.map((p) => {
+
       const phong = p as any;
       let giahientai = 0;
       let soNguoiHienTai = 0;
+
       const hdDangHieuLuc = phong.HopDong.filter((hd: any) => hd.trangThai === 1);
+
       if (hdDangHieuLuc && hdDangHieuLuc.length > 0) {
         giahientai = hdDangHieuLuc.reduce((sum, hd) => sum + Number(hd.giaPhongThucTe || 0), 0);
-        soNguoiHienTai = hdDangHieuLuc.reduce((sum: number, hd: any) => sum + 1 + hd.nguoiOGhep.length, 0);
+        soNguoiHienTai = hdDangHieuLuc.reduce(
+          (sum: number, hd: any) => sum + 1 + hd.nguoiOGhep.length,
+          0,
+        );
       } else {
         giahientai = phong.loaiPhong?.giaTien || 0;
       }
+
+      const soNguoiChuyenDen = (phong.phieuLuanChuyenDen ?? []).reduce(
+        (sum: number, lc: any) => {
+          const hd = lc.hopDong;
+
+          if (
+            !hd ||
+            hd.isDelete ||
+            hd.trangThai !== 1
+          ) {
+            return sum;
+          }
+
+          const soDaiDien =
+            hd.nguoiDaiDien &&
+              !hd.nguoiDaiDien.isDelete
+              ? 1
+              : 0;
+
+          return (
+            sum +
+            soDaiDien +
+            hd.nguoiOGhep.length
+          );
+        },
+        0,
+      );
+
+      soNguoiHienTai += soNguoiChuyenDen;
+
+      const { phieuLuanChuyenDen, ...phongData } = phong;
+
       return {
-        ...phong,
+        ...phongData,
         giahientai,
         soNguoiHienTai,
-      }
+      };
     });
   }
 
@@ -268,6 +362,7 @@ export class PhongService {
     return result;
   }
 
+  
   async getCoTheLuanChuyenByHopDong(hopDongId: string) {
     const homNay = new Date();
     homNay.setHours(0, 0, 0, 0);
@@ -308,16 +403,54 @@ export class PhongService {
             nguoiOGhep: { where: { isDelete: false } },
           },
         },
+        // phieuLuanChuyenDen: {
+        //   where: {
+        //     isDelete: false,
+
+        //     tuNgay: {
+        //       lte: homNay,
+        //     },
+
+        //     OR: [
+        //       { denNgay: null },
+        //       { denNgay: { gte: homNay } },
+        //     ],
+        //   },
+        //   include: {
+        //     hopDong: {
+        //       include: {
+        //         nguoiDaiDien: true,
+        //         nguoiOGhep: {
+        //           where: {
+        //             isDelete: false,
+        //           },
+        //         },
+        //       },
+        //     },
+        //   },
+        // },
+
+
         phieuLuanChuyenDen: {
           where: {
             isDelete: false,
-            denNgay: { gte: homNay }, // phiếu luân chuyển còn hiệu lực mới tính người đang chuyển tới
+            tuNgay: {
+              lte: homNay,
+            },
+            OR: [
+              { denNgay: null },
+              { denNgay: { gte: homNay } },
+            ],
           },
           include: {
             hopDong: {
               include: {
                 nguoiDaiDien: true,
-                nguoiOGhep: { where: { isDelete: false } },
+                nguoiOGhep: {
+                  where: {
+                    isDelete: false,
+                  },
+                },
               },
             },
           },
