@@ -1,248 +1,216 @@
-// import { Test, TestingModule } from '@nestjs/testing';
-// import { NguoiLuuTruTamThoiService } from '../services/nguoi-luu-tru-tam-thoi.service';
-// import { PrismaService } from '../../prisma/prisma.service';
-// import { NotFoundException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { NotFoundException } from '@nestjs/common';
+import { NguoiLuuTruTamThoiService } from '../services/nguoi-luu-tru-tam-thoi.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
-// // ─── Mock Prisma ─────────────────────────────────────────────────────
-// const mockPrisma = {
-//   nguoiLuuTruTamThoi: {
-//     findMany:  jest.fn(),
-//     findFirst: jest.fn(),
-//     create:    jest.fn(),
-//     update:    jest.fn(),
-//     count:     jest.fn(),
-//   },
-// };
+// ─── Mock Prisma ─────────────────────────────────────────────────────
+const mockPrisma = {
+  nguoiThue: {
+    findFirst: jest.fn(),
+  },
+  phong: {
+    findFirst: jest.fn(),
+  },
+  nguoiLuuTruTamThoi: {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    update: jest.fn(),
+  },
+};
 
-// // ─── Fixtures ────────────────────────────────────────────────────────
-// const VALID_ID   = 1;
-// const INVALID_ID = 9999;
-// const CREATE_DTO = {"IDNT": 1, "hoTen": "Trần Thị B", "cccd": "079987654321", "ngaySinh": "2000-03-20", "sdt": "0912345678", "queQuan": "Bình Dương", "phongId": 1};
-// const UPDATE_DTO = {"sdt": "0988888888", "queQuan": "Long An"};
-// const MOCK_ITEM  = { idtt: 1, ...CREATE_DTO };
+// ─── Fixtures ────────────────────────────────────────────────────────
+const IDNT = 1;
+const IDTT = 1;
+const PHONG_ID = 2;
 
-// describe('NguoiLuuTruTamThoiService', () => {
-//   let service: NguoiLuuTruTamThoiService;
+const CREATE_DTO = {
+  IDNT,
+  phongId: PHONG_ID,
+  hoTen: 'Trần Thị B',
+  moiQuanHe: 'Chị gái',
+  cccd: '079987654321',
+  sdt: '0912345678',
+};
 
-//   beforeEach(async () => {
-//     const module: TestingModule = await Test.createTestingModule({
-//       providers: [
-//         NguoiLuuTruTamThoiService,
-//         { provide: PrismaService, useValue: mockPrisma },
-//       ],
-//     }).compile();
+const MOCK_ITEM = {
+  idtt: IDTT,
+  ...CREATE_DTO,
+  ngayDen: new Date('2026-08-01'),
+  ngayVe: null,
+  isDelete: false,
+};
 
-//     service = module.get<NguoiLuuTruTamThoiService>(NguoiLuuTruTamThoiService);
-//     jest.clearAllMocks();
-//   });
+describe('NguoiLuuTruTamThoiService', () => {
+  let service: NguoiLuuTruTamThoiService;
 
-//   // ── Smoke ──────────────────────────────────────────────────────────
-//   it('should be defined', () => {
-//     expect(service).toBeDefined();
-//   });
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        NguoiLuuTruTamThoiService,
+        { provide: PrismaService, useValue: mockPrisma },
+      ],
+    }).compile();
 
-//   // ── findAll ────────────────────────────────────────────────────────
-//   describe('findAll()', () => {
-//     it('trả về mảng khi có dữ liệu', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findMany.mockResolvedValue([MOCK_ITEM]);
-//       const result = await service.findAll();
-//       expect(result).toEqual([MOCK_ITEM]);
-//       expect(mockPrisma.nguoiLuuTruTamThoi.findMany).toHaveBeenCalledTimes(1);
-//     });
+    service = module.get<NguoiLuuTruTamThoiService>(NguoiLuuTruTamThoiService);
+    jest.clearAllMocks();
+  });
 
-//     it('trả về mảng rỗng khi không có dữ liệu', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findMany.mockResolvedValue([]);
-//       expect(await service.findAll()).toEqual([]);
-//     });
-//   });
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
 
-//   // ── findOne ────────────────────────────────────────────────────────
-//   describe('findOne()', () => {
-//     it('trả về record khi tìm thấy', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findFirst.mockResolvedValue(MOCK_ITEM);
-//       const result = await service.findOne(VALID_ID as any);
-//       expect(result).toEqual(MOCK_ITEM);
-//       expect(mockPrisma.nguoiLuuTruTamThoi.findFirst).toHaveBeenCalledWith(
-//         expect.objectContaining({ where: { idtt: VALID_ID, isDelete: false } }),
-//       );
-//     });
+  // ── taoNguoiLuuTru ─────────────────────────────────────────────────
+  describe('taoNguoiLuuTru()', () => {
+    it('ném NotFoundException khi người thuê bảo lãnh không tồn tại', async () => {
+      mockPrisma.nguoiThue.findFirst.mockResolvedValue(null);
 
-//     it('ném NotFoundException khi không tìm thấy', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findFirst.mockResolvedValue(null);
-//       await expect(service.findOne(INVALID_ID as any)).rejects.toThrow(NotFoundException);
-//     });
+      await expect(service.taoNguoiLuuTru(CREATE_DTO as any)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPrisma.nguoiLuuTruTamThoi.create).not.toHaveBeenCalled();
+    });
 
-//     it('ném NotFoundException với message đúng', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findFirst.mockResolvedValue(null);
-//       await expect(service.findOne(INVALID_ID as any))
-//         .rejects.toThrow('không tồn tại');
-//     });
-//   });
+    it('ném NotFoundException khi phongId truyền vào nhưng phòng không tồn tại', async () => {
+      mockPrisma.nguoiThue.findFirst.mockResolvedValue({ idnt: IDNT });
+      mockPrisma.phong.findFirst.mockResolvedValue(null);
 
-//   // ── create ─────────────────────────────────────────────────────────
-//   describe('create()', () => {
-//     it('tạo mới và trả về record', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.create.mockResolvedValue(MOCK_ITEM);
-//       const result = await service.create(CREATE_DTO as any);
-//       expect(result).toEqual(MOCK_ITEM);
-//       expect(mockPrisma.nguoiLuuTruTamThoi.create).toHaveBeenCalledWith(
-//         expect.objectContaining({ data: CREATE_DTO }),
-//       );
-//     });
+      await expect(service.taoNguoiLuuTru(CREATE_DTO as any)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPrisma.nguoiLuuTruTamThoi.create).not.toHaveBeenCalled();
+    });
 
-//     it('gọi prisma.create đúng 1 lần', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.create.mockResolvedValue(MOCK_ITEM);
-//       await service.create(CREATE_DTO as any);
-//       expect(mockPrisma.nguoiLuuTruTamThoi.create).toHaveBeenCalledTimes(1);
-//     });
-//   });
+    it('tạo thành công, không cần kiểm tra phòng khi không truyền phongId', async () => {
+      mockPrisma.nguoiThue.findFirst.mockResolvedValue({ idnt: IDNT });
+      mockPrisma.nguoiLuuTruTamThoi.create.mockResolvedValue(MOCK_ITEM);
 
-//   // ── update ─────────────────────────────────────────────────────────
-//   describe('update()', () => {
-//     it('cập nhật và trả về record đã sửa', async () => {
-//       const updated = { ...MOCK_ITEM, ...UPDATE_DTO };
-//       mockPrisma.nguoiLuuTruTamThoi.findFirst.mockResolvedValue(MOCK_ITEM);
-//       mockPrisma.nguoiLuuTruTamThoi.update.mockResolvedValue(updated);
+      const { phongId, ...dtoKhongCoPhong } = CREATE_DTO;
+      const result = await service.taoNguoiLuuTru(dtoKhongCoPhong as any);
 
-//       const result = await service.update(VALID_ID as any, UPDATE_DTO as any);
-//       expect(result).toEqual(updated);
-//       expect(mockPrisma.nguoiLuuTruTamThoi.update).toHaveBeenCalledWith(
-//         expect.objectContaining({ where: { idtt: VALID_ID } }),
-//       );
-//     });
+      expect(mockPrisma.phong.findFirst).not.toHaveBeenCalled();
+      expect(result).toEqual(MOCK_ITEM);
+    });
 
-//     it('ném NotFoundException khi record không tồn tại', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findFirst.mockResolvedValue(null);
-//       await expect(service.update(INVALID_ID as any, UPDATE_DTO as any))
-//         .rejects.toThrow(NotFoundException);
-//     });
+    it('tạo thành công với đầy đủ dữ liệu, mặc định ngayDen là hôm nay khi không truyền', async () => {
+      mockPrisma.nguoiThue.findFirst.mockResolvedValue({ idnt: IDNT });
+      mockPrisma.phong.findFirst.mockResolvedValue({ phongId: PHONG_ID });
+      mockPrisma.nguoiLuuTruTamThoi.create.mockResolvedValue(MOCK_ITEM);
 
-//     it('không gọi prisma.update khi record không tồn tại', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findFirst.mockResolvedValue(null);
-//       try {
-//         await service.update(INVALID_ID as any, UPDATE_DTO as any);
-//       } catch {}
-//       expect(mockPrisma.nguoiLuuTruTamThoi.update).not.toHaveBeenCalled();
-//     });
-//   });
+      const result = await service.taoNguoiLuuTru(CREATE_DTO as any);
 
-//   // ── remove ─────────────────────────────────────────────────────────
-//   describe('remove()', () => {
-//     it('xóa mềm (set isDelete=true) và trả về record đã cập nhật', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findFirst.mockResolvedValue(MOCK_ITEM);
-//       mockPrisma.nguoiLuuTruTamThoi.update.mockResolvedValue({ ...MOCK_ITEM, isDelete: true });
+      expect(mockPrisma.nguoiLuuTruTamThoi.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            IDNT,
+            phongId: PHONG_ID,
+            hoTen: 'Trần Thị B',
+            ngayDen: expect.any(Date),
+            ngayVe: null,
+          }),
+          include: { phong: true, nguoithue: true },
+        }),
+      );
+      expect(result).toEqual(MOCK_ITEM);
+    });
+  });
 
-//       const result = await service.remove(VALID_ID as any);
-//       expect(result).toEqual({ ...MOCK_ITEM, isDelete: true });
-//       expect(mockPrisma.nguoiLuuTruTamThoi.update).toHaveBeenCalledWith(
-//         { where: { idtt: VALID_ID }, data: { isDelete: true } },
-//       );
-//     });
+  // ── getDanhSachLuuTru ──────────────────────────────────────────────
+  describe('getDanhSachLuuTru()', () => {
+    it('trả về toàn bộ danh sách khi không truyền idnt', async () => {
+      mockPrisma.nguoiLuuTruTamThoi.findMany.mockResolvedValue([MOCK_ITEM]);
 
-//     it('ném NotFoundException khi record không tồn tại', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findFirst.mockResolvedValue(null);
-//       await expect(service.remove(INVALID_ID as any)).rejects.toThrow(NotFoundException);
-//     });
+      const result = await service.getDanhSachLuuTru();
 
-//     it('không gọi prisma.update khi record không tồn tại', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findFirst.mockResolvedValue(null);
-//       try {
-//         await service.remove(INVALID_ID as any);
-//       } catch {}
-//       expect(mockPrisma.nguoiLuuTruTamThoi.update).not.toHaveBeenCalled();
-//     });
-//   });
+      expect(result).toEqual([MOCK_ITEM]);
+      expect(mockPrisma.nguoiLuuTruTamThoi.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { isDelete: false } }),
+      );
+    });
 
-//   // ── search ─────────────────────────────────────────────────────────
-//   describe('search()', () => {
-//     it('tìm theo từ khóa q (OR trên hoTen/cccd/sdt/queQuan)', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findMany.mockResolvedValue([MOCK_ITEM]);
-//       mockPrisma.nguoiLuuTruTamThoi.count.mockResolvedValue(1);
+    it('lọc theo IDNT khi có truyền idnt', async () => {
+      mockPrisma.nguoiLuuTruTamThoi.findMany.mockResolvedValue([MOCK_ITEM]);
 
-//       const result = await service.search({ q: 'Trần' } as any);
+      await service.getDanhSachLuuTru(IDNT);
 
-//       expect(result).toEqual({ total: 1, data: [MOCK_ITEM] });
-//       expect(mockPrisma.nguoiLuuTruTamThoi.findMany).toHaveBeenCalledWith(
-//         expect.objectContaining({
-//           where: {
-//             isDelete: false,
-//             OR: [
-//               { hoTen: { contains: 'Trần' } },
-//               { cccd: { contains: 'Trần' } },
-//               { sdt: { contains: 'Trần' } },
-//               { queQuan: { contains: 'Trần' } },
-//             ],
-//           },
-//           orderBy: { idtt: 'desc' },
-//           take: 10,
-//           skip: 0,
-//         }),
-//       );
-//     });
+      expect(mockPrisma.nguoiLuuTruTamThoi.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { isDelete: false, IDNT } }),
+      );
+    });
+  });
 
-//     it('không truyền q thì chỉ lọc isDelete: false', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findMany.mockResolvedValue([]);
-//       mockPrisma.nguoiLuuTruTamThoi.count.mockResolvedValue(0);
+  // ── getChiTietLuuTru ───────────────────────────────────────────────
+  describe('getChiTietLuuTru()', () => {
+    it('ném NotFoundException khi không tìm thấy', async () => {
+      mockPrisma.nguoiLuuTruTamThoi.findFirst.mockResolvedValue(null);
 
-//       await service.search({} as any);
+      await expect(service.getChiTietLuuTru(9999)).rejects.toThrow(NotFoundException);
+    });
 
-//       expect(mockPrisma.nguoiLuuTruTamThoi.findMany).toHaveBeenCalledWith(
-//         expect.objectContaining({ where: { isDelete: false } }),
-//       );
-//     });
-//   });
+    it('trả về đúng record khi tìm thấy', async () => {
+      mockPrisma.nguoiLuuTruTamThoi.findFirst.mockResolvedValue(MOCK_ITEM);
 
-//   // ── searchByName ───────────────────────────────────────────────────
-//   describe('searchByName()', () => {
-//     it('tìm theo tên (hoTen contains) và trả về mảng', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findMany.mockResolvedValue([MOCK_ITEM]);
-//       const result = await service.searchByName('Trần');
-//       expect(result).toEqual([MOCK_ITEM]);
-//       expect(mockPrisma.nguoiLuuTruTamThoi.findMany).toHaveBeenCalledWith({
-//         where: { hoTen: { contains: 'Trần' }, isDelete: false },
-//       });
-//     });
+      const result = await service.getChiTietLuuTru(IDTT);
 
-//     it('trả về mảng rỗng khi không tìm thấy', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findMany.mockResolvedValue([]);
-//       expect(await service.searchByName('Không tồn tại')).toEqual([]);
-//     });
-//   });
+      expect(result).toEqual(MOCK_ITEM);
+      expect(mockPrisma.nguoiLuuTruTamThoi.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { idtt: IDTT, isDelete: false } }),
+      );
+    });
+  });
 
-//   // ── getAllLoadingBalance ──────────────────────────────────────────
-//   describe('getAllLoadingBalance()', () => {
-//     it('lấy 15 phần tử đầu khi không truyền id', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findMany.mockResolvedValue([MOCK_ITEM]);
-//       const result = await service.getAllLoadingBalance();
-//       expect(result).toEqual([MOCK_ITEM]);
-//       expect(mockPrisma.nguoiLuuTruTamThoi.findMany).toHaveBeenCalledWith(
-//         expect.objectContaining({
-//           where: { isDelete: false },
-//           orderBy: { idtt: 'asc' },
-//           take: 15,
-//         }),
-//       );
-//     });
+  // ── capNhatLuuTru ──────────────────────────────────────────────────
+  describe('capNhatLuuTru()', () => {
+    it('ném NotFoundException khi bản ghi không tồn tại', async () => {
+      mockPrisma.nguoiLuuTruTamThoi.findFirst.mockResolvedValue(null);
 
-//     it('lấy 15 phần tử tiếp theo kể từ id truyền vào (cursor)', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findMany.mockResolvedValue([MOCK_ITEM]);
-//       const result = await service.getAllLoadingBalance(VALID_ID as any);
-//       expect(result).toEqual([MOCK_ITEM]);
-//       expect(mockPrisma.nguoiLuuTruTamThoi.findMany).toHaveBeenCalledWith(
-//         expect.objectContaining({
-//           where: { isDelete: false },
-//           orderBy: { idtt: 'asc' },
-//           take: 15,
-//           skip: 1,
-//           cursor: { idtt: VALID_ID },
-//         }),
-//       );
-//     });
+      await expect(
+        service.capNhatLuuTru(9999, { sdt: '0988888888' } as any),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.nguoiLuuTruTamThoi.update).not.toHaveBeenCalled();
+    });
 
-//     it('trả về mảng rỗng khi không còn dữ liệu', async () => {
-//       mockPrisma.nguoiLuuTruTamThoi.findMany.mockResolvedValue([]);
-//       expect(await service.getAllLoadingBalance(INVALID_ID as any)).toEqual([]);
-//     });
-//   });
+    it('chỉ cập nhật các field được truyền, giữ nguyên các field còn lại', async () => {
+      mockPrisma.nguoiLuuTruTamThoi.findFirst.mockResolvedValue(MOCK_ITEM);
+      mockPrisma.nguoiLuuTruTamThoi.update.mockResolvedValue({
+        ...MOCK_ITEM,
+        sdt: '0988888888',
+      });
 
-// });
+      const result = await service.capNhatLuuTru(IDTT, { sdt: '0988888888' } as any);
+
+      expect(mockPrisma.nguoiLuuTruTamThoi.update).toHaveBeenCalledWith({
+        where: { idtt: IDTT },
+        data: { sdt: '0988888888' },
+        include: { phong: true, nguoithue: true },
+      });
+      expect(result.sdt).toBe('0988888888');
+    });
+  });
+
+  // ── xoaLuuTru ──────────────────────────────────────────────────────
+  describe('xoaLuuTru()', () => {
+    it('ném NotFoundException khi bản ghi không tồn tại', async () => {
+      mockPrisma.nguoiLuuTruTamThoi.findFirst.mockResolvedValue(null);
+
+      await expect(service.xoaLuuTru(9999)).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.nguoiLuuTruTamThoi.update).not.toHaveBeenCalled();
+    });
+
+    it('xóa mềm thành công (isDelete=true)', async () => {
+      mockPrisma.nguoiLuuTruTamThoi.findFirst.mockResolvedValue(MOCK_ITEM);
+      mockPrisma.nguoiLuuTruTamThoi.update.mockResolvedValue({
+        ...MOCK_ITEM,
+        isDelete: true,
+      });
+
+      const result = await service.xoaLuuTru(IDTT);
+
+      expect(mockPrisma.nguoiLuuTruTamThoi.update).toHaveBeenCalledWith({
+        where: { idtt: IDTT },
+        data: { isDelete: true },
+      });
+      expect(result.isDelete).toBe(true);
+    });
+  });
+});

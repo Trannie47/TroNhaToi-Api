@@ -53,6 +53,9 @@ const mockPrisma = {
     cauHinhGia: {
         findFirst: jest.fn(),
     },
+    phieuLuanChuyen: {
+        findMany: jest.fn(),
+    },
     $transaction: jest.fn(),
 };
 
@@ -95,6 +98,9 @@ describe('HopDongService', () => {
         mockPrisma.nguoiOGhep.findMany.mockResolvedValue([]);
         mockPrisma.nguoiThue.findFirst.mockResolvedValue(NGUOI_DAI_DIEN);
         mockPrisma.nguoiThue.findMany.mockResolvedValue([]);
+        // Mặc định: không có ai đang luân chuyển đi/đến (dùng bởi _createHopDong,
+        // getRoomsAvailableForContract và capNhatTrangThaiPhong)
+        mockPrisma.phieuLuanChuyen.findMany.mockResolvedValue([]);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -425,10 +431,11 @@ describe('HopDongService', () => {
         it('hủy thành công khi hết nợ tạp hóa và giải phóng phòng/đại diện', async () => {
             mockPrisma.hopDong.findFirst
                 .mockResolvedValueOnce({ ...MOCK_ITEM, trangThai: 0 }) // findOne
-                .mockResolvedValueOnce(null) // conHopDongKhacCuaPhong
                 .mockResolvedValueOnce(null); // conHopDongKhacCuaDaiDien
             mockPrisma.hoaDonTapHoa.findMany.mockResolvedValue([]);
             mockPrisma.hopDong.update.mockResolvedValue({ ...MOCK_ITEM, isDelete: true });
+            // capNhatTrangThaiPhong: không còn hợp đồng nào gắn với phòng -> trả phòng về trống
+            mockPrisma.hopDong.findMany.mockResolvedValue([]);
 
             const result = await service.cancelContract(MOCK_ITEM.hopDongId);
 
@@ -471,11 +478,12 @@ describe('HopDongService', () => {
             mockPrisma.hopDong.findFirst
                 .mockResolvedValueOnce({ ...MOCK_ITEM, trangThai: 1 }) // findOne
                 .mockResolvedValueOnce({ hopDongId: 'HD-KHAC' }) // conHopDongKhacCuaPhongTruocKhiKetThuc -> có -> bỏ qua check điện nước
-                .mockResolvedValueOnce(null) // conHopDongKhacCuaPhong (trong transaction)
                 .mockResolvedValueOnce(null); // conHopDongKhacCuaDaiDien (trong transaction)
             mockPrisma.hoaDonPhong.findFirst.mockResolvedValue(null);
             mockPrisma.hoaDonTapHoa.findMany.mockResolvedValue([]);
             mockPrisma.hopDong.update.mockResolvedValue({ ...MOCK_ITEM, trangThai: 2 });
+            // capNhatTrangThaiPhong: không còn hợp đồng nào gắn với phòng -> trả phòng về trống
+            mockPrisma.hopDong.findMany.mockResolvedValue([]);
 
             const result = await service.terminateContract(MOCK_ITEM.hopDongId);
 

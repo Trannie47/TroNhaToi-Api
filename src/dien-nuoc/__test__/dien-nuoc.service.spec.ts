@@ -1,234 +1,258 @@
-// import { Test, TestingModule } from '@nestjs/testing';
-// import { DienNuocService } from '../services/dien-nuoc.service';
-// import { PrismaService } from '../../prisma/prisma.service';
-// import { NotFoundException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { DienNuocService } from '../services/dien-nuoc.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
-// // ─── Mock Prisma ─────────────────────────────────────────────────────
-// const mockPrisma = {
-//   dienNuoc: {
-//     findMany:  jest.fn(),
-//     findFirst: jest.fn(),
-//     create:    jest.fn(),
-//     update:    jest.fn(),
-//     count:     jest.fn(),
-//   },
-// };
+// ─── Mock Prisma ─────────────────────────────────────────────────────
+const mockPrisma = {
+  phong: {
+    findUnique: jest.fn(),
+  },
+  dienNuoc: {
+    findFirst: jest.fn(),
+    create: jest.fn(),
+    updateMany: jest.fn(),
+  },
+};
 
-// // ─── Fixtures ────────────────────────────────────────────────────────
-// const VALID_ID   = 1;
-// const INVALID_ID = 9999;
-// const CREATE_DTO = {"phongId": 1, "thangNam": "01/2024", "chiSoDien": 150, "chiSoNuoc": 10};
-// const UPDATE_DTO = {"chiSoDien": 200, "chiSoNuoc": 15};
-// const MOCK_ITEM  = { idDienNuoc: 1, ...CREATE_DTO };
+// ─── Fixtures ────────────────────────────────────────────────────────
+const PHONG_ID = 1;
+const PHONG_KHONG_TON_TAI = 999;
+const THANG_NAM = '08/2026';
 
-// describe('DienNuocService', () => {
-//   let service: DienNuocService;
+const MOCK_PHONG = { phongId: PHONG_ID, tenPhong: 'Phòng 101' };
 
-//   beforeEach(async () => {
-//     const module: TestingModule = await Test.createTestingModule({
-//       providers: [
-//         DienNuocService,
-//         { provide: PrismaService, useValue: mockPrisma },
-//       ],
-//     }).compile();
+const CREATE_DTO = {
+  phongId: PHONG_ID,
+  thangNam: THANG_NAM,
+  chiSoDienCu: 100,
+  chiSoDienMoi: 150,
+  chiSoNuocCu: 20,
+  chiSoNuocMoi: 25,
+};
 
-//     service = module.get<DienNuocService>(DienNuocService);
-//     jest.clearAllMocks();
-//   });
+describe('DienNuocService', () => {
+  let service: DienNuocService;
 
-//   // ── Smoke ──────────────────────────────────────────────────────────
-//   it('should be defined', () => {
-//     expect(service).toBeDefined();
-//   });
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [DienNuocService, { provide: PrismaService, useValue: mockPrisma }],
+    }).compile();
 
-//   // ── findAll ────────────────────────────────────────────────────────
-//   describe('findAll()', () => {
-//     it('trả về mảng khi có dữ liệu', async () => {
-//       mockPrisma.dienNuoc.findMany.mockResolvedValue([MOCK_ITEM]);
-//       const result = await service.findAll();
-//       expect(result).toEqual([MOCK_ITEM]);
-//       expect(mockPrisma.dienNuoc.findMany).toHaveBeenCalledTimes(1);
-//     });
+    service = module.get<DienNuocService>(DienNuocService);
+    jest.clearAllMocks();
+  });
 
-//     it('trả về mảng rỗng khi không có dữ liệu', async () => {
-//       mockPrisma.dienNuoc.findMany.mockResolvedValue([]);
-//       expect(await service.findAll()).toEqual([]);
-//     });
-//   });
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
 
-//   // ── findOne ────────────────────────────────────────────────────────
-//   describe('findOne()', () => {
-//     it('trả về record khi tìm thấy', async () => {
-//       mockPrisma.dienNuoc.findFirst.mockResolvedValue(MOCK_ITEM);
-//       const result = await service.findOne(VALID_ID as any);
-//       expect(result).toEqual(MOCK_ITEM);
-//       expect(mockPrisma.dienNuoc.findFirst).toHaveBeenCalledWith(
-//         expect.objectContaining({ where: { idDienNuoc: VALID_ID, isDelete: false } }),
-//       );
-//     });
+  // ── getDienNuocInitData ───────────────────────────────────────────
+  describe('getDienNuocInitData()', () => {
+    it('ném NotFoundException khi không tìm thấy phòng', async () => {
+      mockPrisma.phong.findUnique.mockResolvedValue(null);
 
-//     it('ném NotFoundException khi không tìm thấy', async () => {
-//       mockPrisma.dienNuoc.findFirst.mockResolvedValue(null);
-//       await expect(service.findOne(INVALID_ID as any)).rejects.toThrow(NotFoundException);
-//     });
+      await expect(
+        service.getDienNuocInitData(PHONG_KHONG_TON_TAI, THANG_NAM),
+      ).rejects.toThrow(NotFoundException);
+    });
 
-//     it('ném NotFoundException với message đúng', async () => {
-//       mockPrisma.dienNuoc.findFirst.mockResolvedValue(null);
-//       await expect(service.findOne(INVALID_ID as any))
-//         .rejects.toThrow('không tồn tại');
-//     });
-//   });
+    it('mode UPDATE khi kỳ này đang có bản ghi chưa chốt (TrangThai=0)', async () => {
+      mockPrisma.phong.findUnique.mockResolvedValue(MOCK_PHONG);
+      const openRecord = { phongId: PHONG_ID, thangNam: THANG_NAM, lanGhi: 1, TrangThai: 0 };
+      mockPrisma.dienNuoc.findFirst.mockResolvedValueOnce(openRecord);
 
-//   // ── create ─────────────────────────────────────────────────────────
-//   describe('create()', () => {
-//     it('tạo mới và trả về record', async () => {
-//       mockPrisma.dienNuoc.create.mockResolvedValue(MOCK_ITEM);
-//       const result = await service.create(CREATE_DTO as any);
-//       expect(result).toEqual(MOCK_ITEM);
-//       expect(mockPrisma.dienNuoc.create).toHaveBeenCalledWith({
-//         data: expect.objectContaining({ ...CREATE_DTO, idDienNuoc: expect.any(String) }),
-//       });
-//     });
+      const result = await service.getDienNuocInitData(PHONG_ID, THANG_NAM);
 
-//     it('gọi prisma.create đúng 1 lần', async () => {
-//       mockPrisma.dienNuoc.create.mockResolvedValue(MOCK_ITEM);
-//       await service.create(CREATE_DTO as any);
-//       expect(mockPrisma.dienNuoc.create).toHaveBeenCalledTimes(1);
-//     });
-//   });
+      expect(result).toEqual({ mode: 'UPDATE', data: openRecord });
+    });
 
-//   // ── update ─────────────────────────────────────────────────────────
-//   describe('update()', () => {
-//     it('cập nhật và trả về record đã sửa', async () => {
-//       const updated = { ...MOCK_ITEM, ...UPDATE_DTO };
-//       mockPrisma.dienNuoc.findFirst.mockResolvedValue(MOCK_ITEM);
-//       mockPrisma.dienNuoc.update.mockResolvedValue(updated);
+    it('mode CREATE, isFirstTime=true khi phòng chưa từng ghi chỉ số lần nào', async () => {
+      mockPrisma.phong.findUnique.mockResolvedValue(MOCK_PHONG);
+      mockPrisma.dienNuoc.findFirst
+        .mockResolvedValueOnce(null) // openRecord: không có
+        .mockResolvedValueOnce(null); // oldestRecord: không có
 
-//       const result = await service.update(VALID_ID as any, UPDATE_DTO as any);
-//       expect(result).toEqual(updated);
-//       expect(mockPrisma.dienNuoc.update).toHaveBeenCalledWith(
-//         expect.objectContaining({ where: { idDienNuoc: VALID_ID } }),
-//       );
-//     });
+      const result = await service.getDienNuocInitData(PHONG_ID, THANG_NAM);
 
-//     it('ném NotFoundException khi record không tồn tại', async () => {
-//       mockPrisma.dienNuoc.findFirst.mockResolvedValue(null);
-//       await expect(service.update(INVALID_ID as any, UPDATE_DTO as any))
-//         .rejects.toThrow(NotFoundException);
-//     });
+      expect(result.mode).toBe('CREATE');
+      expect((result.data as any).isFirstTime).toBe(true);
+      expect(result.data.chiSoDienCu).toBe(0);
+    });
 
-//     it('không gọi prisma.update khi record không tồn tại', async () => {
-//       mockPrisma.dienNuoc.findFirst.mockResolvedValue(null);
-//       try {
-//         await service.update(INVALID_ID as any, UPDATE_DTO as any);
-//       } catch {}
-//       expect(mockPrisma.dienNuoc.update).not.toHaveBeenCalled();
-//     });
-//   });
+    it('mode CREATE, lấy chỉ số mới của lần chốt gần nhất (TrangThai=1) làm chỉ số cũ', async () => {
+      mockPrisma.phong.findUnique.mockResolvedValue(MOCK_PHONG);
+      const oldestRecord = { chiSoDienMoi: 50, chiSoNuocMoi: 5, anhDienMoi: null, anhNuocMoi: null };
+      const latestRecord = {
+        chiSoDienMoi: 150,
+        chiSoNuocMoi: 25,
+        anhDienMoi: 'anh-dien.jpg',
+        anhNuocMoi: 'anh-nuoc.jpg',
+      };
+      mockPrisma.dienNuoc.findFirst
+        .mockResolvedValueOnce(null) // openRecord
+        .mockResolvedValueOnce(oldestRecord) // oldestRecord
+        .mockResolvedValueOnce(latestRecord); // latestRecord (TrangThai=1)
 
-//   // ── remove ─────────────────────────────────────────────────────────
-//   describe('remove()', () => {
-//     it('xóa mềm (set isDelete=true) và trả về record đã cập nhật', async () => {
-//       mockPrisma.dienNuoc.findFirst.mockResolvedValue(MOCK_ITEM);
-//       mockPrisma.dienNuoc.update.mockResolvedValue({ ...MOCK_ITEM, isDelete: true });
+      const result = await service.getDienNuocInitData(PHONG_ID, THANG_NAM);
 
-//       const result = await service.remove(VALID_ID as any);
-//       expect(result).toEqual({ ...MOCK_ITEM, isDelete: true });
-//       expect(mockPrisma.dienNuoc.update).toHaveBeenCalledWith(
-//         { where: { idDienNuoc: VALID_ID }, data: { isDelete: true } },
-//       );
-//     });
+      expect(result.mode).toBe('CREATE');
+      expect((result.data as any).isFirstTime).toBe(false);
+      expect(result.data.chiSoDienCu).toBe(150);
+      expect(result.data.chiSoNuocCu).toBe(25);
+      expect(result.data.anhDienCu).toBe('anh-dien.jpg');
+    });
 
-//     it('ném NotFoundException khi record không tồn tại', async () => {
-//       mockPrisma.dienNuoc.findFirst.mockResolvedValue(null);
-//       await expect(service.remove(INVALID_ID as any)).rejects.toThrow(NotFoundException);
-//     });
+    it('mode CREATE, fallback dùng chỉ số của bản ghi cũ nhất khi chưa từng chốt hóa đơn nào', async () => {
+      mockPrisma.phong.findUnique.mockResolvedValue(MOCK_PHONG);
+      const oldestRecord = { chiSoDienMoi: 50, chiSoNuocMoi: 5, anhDienMoi: 'anh-cu.jpg', anhNuocMoi: null };
+      mockPrisma.dienNuoc.findFirst
+        .mockResolvedValueOnce(null) // openRecord
+        .mockResolvedValueOnce(oldestRecord) // oldestRecord
+        .mockResolvedValueOnce(null); // latestRecord: không có bản ghi chốt nào
 
-//     it('không gọi prisma.update khi record không tồn tại', async () => {
-//       mockPrisma.dienNuoc.findFirst.mockResolvedValue(null);
-//       try {
-//         await service.remove(INVALID_ID as any);
-//       } catch {}
-//       expect(mockPrisma.dienNuoc.update).not.toHaveBeenCalled();
-//     });
-//   });
+      const result = await service.getDienNuocInitData(PHONG_ID, THANG_NAM);
 
-//   // ── search ─────────────────────────────────────────────────────────
-//   describe('search()', () => {
-//     it('tìm theo mã (contains) và trả về { total, data }', async () => {
-//       mockPrisma.dienNuoc.findMany.mockResolvedValue([MOCK_ITEM]);
-//       mockPrisma.dienNuoc.count.mockResolvedValue(1);
+      expect(result.mode).toBe('CREATE');
+      expect(result.data.chiSoDienCu).toBe(50);
+      expect(result.data.chiSoNuocCu).toBe(5);
+      expect(result.data.anhDienCu).toBe('anh-cu.jpg');
+    });
+  });
 
-//       const result = await service.search({ ma: 'DN00000001A' } as any);
+  // ── createDienNuoc ─────────────────────────────────────────────────
+  describe('createDienNuoc()', () => {
+    it('ném BadRequestException khi thiếu phongId hoặc thangNam', async () => {
+      await expect(
+        service.createDienNuoc({ ...CREATE_DTO, phongId: undefined } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
 
-//       expect(result).toEqual({ total: 1, data: [MOCK_ITEM] });
-//       expect(mockPrisma.dienNuoc.findMany).toHaveBeenCalledWith(
-//         expect.objectContaining({
-//           where: { isDelete: false, idDienNuoc: { contains: 'DN00000001A' } },
-//           orderBy: { idDienNuoc: 'desc' },
-//           take: 10,
-//           skip: 0,
-//         }),
-//       );
-//     });
+    it('ném NotFoundException khi phòng không tồn tại', async () => {
+      mockPrisma.phong.findUnique.mockResolvedValue(null);
 
-//     it('áp dụng limit/offset/sortBy/sort tùy chỉnh', async () => {
-//       mockPrisma.dienNuoc.findMany.mockResolvedValue([]);
-//       mockPrisma.dienNuoc.count.mockResolvedValue(0);
+      await expect(service.createDienNuoc(CREATE_DTO as any)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
 
-//       await service.search({ limit: 5, offset: 10, sortBy: 'idDienNuoc', sort: 'asc' } as any);
+    it('ném BadRequestException khi chỉ số điện mới nhỏ hơn chỉ số điện cũ', async () => {
+      mockPrisma.phong.findUnique.mockResolvedValue(MOCK_PHONG);
 
-//       expect(mockPrisma.dienNuoc.findMany).toHaveBeenCalledWith(
-//         expect.objectContaining({ orderBy: { idDienNuoc: 'asc' }, take: 5, skip: 10 }),
-//       );
-//     });
+      await expect(
+        service.createDienNuoc({ ...CREATE_DTO, chiSoDienCu: 100, chiSoDienMoi: 50 } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
 
-//     it('không truyền ma thì chỉ lọc isDelete: false', async () => {
-//       mockPrisma.dienNuoc.findMany.mockResolvedValue([MOCK_ITEM]);
-//       mockPrisma.dienNuoc.count.mockResolvedValue(1);
+    it('ném BadRequestException khi chỉ số nước mới nhỏ hơn chỉ số nước cũ', async () => {
+      mockPrisma.phong.findUnique.mockResolvedValue(MOCK_PHONG);
 
-//       await service.search({} as any);
+      await expect(
+        service.createDienNuoc({ ...CREATE_DTO, chiSoNuocCu: 20, chiSoNuocMoi: 10 } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
 
-//       expect(mockPrisma.dienNuoc.findMany).toHaveBeenCalledWith(
-//         expect.objectContaining({ where: { isDelete: false } }),
-//       );
-//     });
-//   });
+    it('ném BadRequestException khi kỳ này đang có bản ghi chưa chốt', async () => {
+      mockPrisma.phong.findUnique.mockResolvedValue(MOCK_PHONG);
+      mockPrisma.dienNuoc.findFirst.mockResolvedValue({ lanGhi: 1, TrangThai: 0 });
 
-//   // ── getAllLoadingBalance ──────────────────────────────────────────
-//   describe('getAllLoadingBalance()', () => {
-//     it('lấy 15 phần tử đầu khi không truyền id', async () => {
-//       mockPrisma.dienNuoc.findMany.mockResolvedValue([MOCK_ITEM]);
-//       const result = await service.getAllLoadingBalance();
-//       expect(result).toEqual([MOCK_ITEM]);
-//       expect(mockPrisma.dienNuoc.findMany).toHaveBeenCalledWith(
-//         expect.objectContaining({
-//           where: { isDelete: false },
-//           orderBy: { idDienNuoc: 'asc' },
-//           take: 15,
-//         }),
-//       );
-//     });
+      await expect(service.createDienNuoc(CREATE_DTO as any)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
 
-//     it('lấy 15 phần tử tiếp theo kể từ id truyền vào (cursor)', async () => {
-//       mockPrisma.dienNuoc.findMany.mockResolvedValue([MOCK_ITEM]);
-//       const result = await service.getAllLoadingBalance(VALID_ID as any);
-//       expect(result).toEqual([MOCK_ITEM]);
-//       expect(mockPrisma.dienNuoc.findMany).toHaveBeenCalledWith(
-//         expect.objectContaining({
-//           where: { isDelete: false },
-//           orderBy: { idDienNuoc: 'asc' },
-//           take: 15,
-//           skip: 1,
-//           cursor: { idDienNuoc: VALID_ID },
-//         }),
-//       );
-//     });
+    it('tạo mới thành công với lanGhi kế tiếp bản ghi cuối cùng của kỳ', async () => {
+      mockPrisma.phong.findUnique.mockResolvedValue(MOCK_PHONG);
+      mockPrisma.dienNuoc.findFirst.mockResolvedValue({ lanGhi: 2, TrangThai: 1 });
+      mockPrisma.dienNuoc.create.mockImplementation(({ data }: any) => Promise.resolve(data));
 
-//     it('trả về mảng rỗng khi không còn dữ liệu', async () => {
-//       mockPrisma.dienNuoc.findMany.mockResolvedValue([]);
-//       expect(await service.getAllLoadingBalance(INVALID_ID as any)).toEqual([]);
-//     });
-//   });
+      const result = await service.createDienNuoc(CREATE_DTO as any);
 
-// });
+      expect(mockPrisma.dienNuoc.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ lanGhi: 3, TrangThai: 0 }) }),
+      );
+      expect(result.lanGhi).toBe(3);
+    });
+
+    it('lanGhi = 1 khi đây là bản ghi đầu tiên của kỳ', async () => {
+      mockPrisma.phong.findUnique.mockResolvedValue(MOCK_PHONG);
+      mockPrisma.dienNuoc.findFirst.mockResolvedValue(null);
+      mockPrisma.dienNuoc.create.mockImplementation(({ data }: any) => Promise.resolve(data));
+
+      const result = await service.createDienNuoc(CREATE_DTO as any);
+
+      expect(result.lanGhi).toBe(1);
+    });
+  });
+
+  // ── updateDienNuoc ─────────────────────────────────────────────────
+  describe('updateDienNuoc()', () => {
+    it('ném NotFoundException khi không tìm thấy bản ghi', async () => {
+      mockPrisma.dienNuoc.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateDienNuoc(PHONG_ID, THANG_NAM, 1, {} as any),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('ném BadRequestException khi bản ghi đã chốt hóa đơn (TrangThai=1)', async () => {
+      mockPrisma.dienNuoc.findFirst.mockResolvedValue({
+        phongId: PHONG_ID,
+        thangNam: THANG_NAM,
+        lanGhi: 1,
+        TrangThai: 1,
+      });
+
+      await expect(
+        service.updateDienNuoc(PHONG_ID, THANG_NAM, 1, { chiSoDienMoi: 200 } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('ném BadRequestException khi chỉ số điện mới nhỏ hơn chỉ số điện cũ', async () => {
+      mockPrisma.dienNuoc.findFirst.mockResolvedValue({
+        phongId: PHONG_ID,
+        thangNam: THANG_NAM,
+        lanGhi: 1,
+        TrangThai: 0,
+        chiSoDienCu: 100,
+        chiSoDienMoi: 150,
+        chiSoNuocCu: 20,
+        chiSoNuocMoi: 25,
+      });
+
+      await expect(
+        service.updateDienNuoc(PHONG_ID, THANG_NAM, 1, { chiSoDienMoi: 50 } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('cập nhật thành công và trả về bản ghi mới nhất', async () => {
+      const banGhiHienTai = {
+        phongId: PHONG_ID,
+        thangNam: THANG_NAM,
+        lanGhi: 1,
+        TrangThai: 0,
+        chiSoDienCu: 100,
+        chiSoDienMoi: 150,
+        chiSoNuocCu: 20,
+        chiSoNuocMoi: 25,
+      };
+      const banGhiSauKhiSua = { ...banGhiHienTai, chiSoDienMoi: 200 };
+
+      mockPrisma.dienNuoc.findFirst
+        .mockResolvedValueOnce(banGhiHienTai) // tìm bản ghi cần sửa
+        .mockResolvedValueOnce(banGhiSauKhiSua); // trả về bản ghi sau khi cập nhật
+
+      const result = await service.updateDienNuoc(PHONG_ID, THANG_NAM, 1, {
+        chiSoDienMoi: 200,
+      } as any);
+
+      expect(mockPrisma.dienNuoc.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { phongId: PHONG_ID, thangNam: THANG_NAM, lanGhi: 1 },
+          data: expect.objectContaining({ chiSoDienMoi: 200 }),
+        }),
+      );
+      expect(result).toEqual(banGhiSauKhiSua);
+    });
+  });
+});
