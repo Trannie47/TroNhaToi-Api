@@ -3,7 +3,6 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ThongKeSnapshotService } from '../../thong-ke/services/thong-ke-snapshot.service';
@@ -16,30 +15,6 @@ export class PhieuLuanChuyenService {
     private prisma: PrismaService,
     private thongKeSnapshot: ThongKeSnapshotService,
   ) { }
-
-  // async create(dto: CreateChiTietLuanChuyenDto) {
-  //   return await this.prisma.$transaction(async (tx) => {
-  //     const created = await tx.phieuLuanChuyen.create({
-  //       data: {
-  //         hopDongId: dto.hopDongId,
-  //         phongMoiId: dto.phongMoiId,
-  //         tuNgay: dto.tuNgay ? new Date(dto.tuNgay) : null,
-  //         denNgay: dto.denNgay ? new Date(dto.denNgay) : null,
-  //         lyDoLuanChuyen: dto.lyDoLuanChuyen,
-  //         chiPhi: dto.chiPhi,
-  //         ghiChu: dto.ghiChu,
-  //       },
-  //     });
-
-  //     await this.thongKeSnapshot.invalidateAll(tx);
-
-  //     return {
-  //       success: true,
-  //       message: 'Tạo phiếu luân chuyển thành công!',
-  //       data: created,
-  //     };
-  //   });
-  // }
 
   async create(dto: CreateChiTietLuanChuyenDto) {
   return await this.prisma.$transaction(async (tx) => {
@@ -132,7 +107,7 @@ export class PhieuLuanChuyenService {
     }
 
     // =========================================================
-    // 5. TẠO PHIẾU TRƯỚC
+    // 5. TẠO PHIẾU
     // =========================================================
     const created = await tx.phieuLuanChuyen.create({
       data: {
@@ -150,87 +125,18 @@ export class PhieuLuanChuyenService {
       },
     });
 
-    console.log(
-      '>>> ĐÃ TẠO PHIẾU LUÂN CHUYỂN:',
-      created,
-    );
+    // =========================================================
+    // 6. Cập nhật lại trạng thái phòng gốc (phòng đi) và phòng mới (phòng đến)
+    //    ngay trong transaction — KHÔNG dùng cron tự động.
+    // =========================================================
+    await this.capNhatTrangThaiPhong(tx, hopDong.phongId);
 
-  
-    await this.capNhatTrangThaiPhong(
-      tx,
-      hopDong.phongId,
-    );
-
-if (
-  dto.phongMoiId != null &&
-  dto.phongMoiId !== hopDong.phongId
-) {
-  // =========================================================
-  // Kiểm tra phiếu mới có đang hiệu lực ngay hôm nay hay không
-  // =========================================================
-  const now = new Date();
-
-  const homNay = new Date(
-    Date.UTC(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    ),
-  );
-
-  const phieuMoiDangHieuLuc =
-    created.tuNgay != null &&
-    new Date(created.tuNgay) <= homNay &&
-    (
-      created.denNgay == null ||
-      new Date(created.denNgay) >= homNay
-    );
-
-  // =========================================================
-  // Nếu người đã chuyển sang phòng mới ngay hôm nay
-  // thì phòng mới đang được sử dụng.
-
-  if (phieuMoiDangHieuLuc) {
-    await tx.phong.update({
-      where: {
-        phongId: dto.phongMoiId,
-      },
-      data: {
-        trangThai: 1,
-      },
-    });
-
-    console.log(
-      '>>> PHÒNG MỚI ĐANG THUÊ:',
-      dto.phongMoiId,
-    );
-  } else {
-    // Phiếu bắt đầu trong tương lai hoặc đã kết thúc
-    // thì tính lại trạng thái phòng theo nghiệp vụ.
-    await this.capNhatTrangThaiPhong(
-      tx,
-      dto.phongMoiId,
-    );
-  }
-
-  const phongMoiSauKhiCapNhat =
-    await tx.phong.findUnique({
-      where: {
-        phongId: dto.phongMoiId,
-      },
-      select: {
-        phongId: true,
-        tenPhong: true,
-        trangThai: true,
-      },
-    });
-
-  console.log(
-    '>>> PHÒNG MỚI SAU KHI CẬP NHẬT:',
-    phongMoiSauKhiCapNhat,
-  );
-}
-    
+    if (
+      dto.phongMoiId != null &&
+      dto.phongMoiId !== hopDong.phongId
+    ) {
+      await this.capNhatTrangThaiPhong(tx, dto.phongMoiId);
+    }
 
     await this.thongKeSnapshot.invalidateAll(tx);
 
@@ -362,6 +268,32 @@ if (
     return soNguoi;
   }
 
+  /**
+   * Tự động cập nhật trạng thái 1 phòng — CHỈ được gọi từ bên trong
+   * create/update/remove của phiếu luân chuyển (không có cron tự động).
+   *
+   * Quy tắc (so sánh theo SỐ NGƯỜI, không phải số hợp đồng):
+   * 1. Lấy tổng số người thuộc các hợp đồng ĐANG HIỆU LỰC (trangThai = 1)
+   *    có phongId = phòng này -> tongSoNguoiHopDong
+   *    (1 người đại diện + số người ở ghép, mỗi hợp đồng).
+   * 2. Trong số đó, lấy số người thuộc các hợp đồng ĐÃ CÓ phiếu luân chuyển
+   *    đi CÒN HIỆU LỰC (tuNgay <= hôm nay, denNgay null hoặc >= hôm nay)
+   *    -> soNguoiDaLuanChuyenDi.
+   * 3. Cộng thêm số người đang được luân chuyển ĐẾN phòng này (còn hiệu lực,
+   *    hợp đồng gốc của họ vẫn đang hiệu lực) -> soNguoiChuyenDen.
+   *    (để phòng nhận luân chuyển cũng được cập nhật đúng, vì phòng đó có
+   *    thể không có hợp đồng nào trực tiếp gắn phongId).
+   *
+   * soNguoiConOPhong = (tongSoNguoiHopDong - soNguoiDaLuanChuyenDi) + soNguoiChuyenDen
+   *
+   * - Nếu phòng không có hợp đồng nào và cũng không có ai chuyển đến
+   *   -> trangThai = 0 (phòng trống, chưa từng có người).
+   * - Nếu soNguoiConOPhong > 0 (còn người ở, dù là hợp đồng gốc hay do
+   *   luân chuyển đến) -> trangThai = 1 (đang thuê).
+   * - Nếu soNguoiConOPhong === 0 nhưng phòng có/từng có hợp đồng
+   *   (tức tất cả số người thuộc hợp đồng của phòng đã luân chuyển đi hết
+   *   và không có ai chuyển đến thay) -> trangThai = 2 (đang sửa).
+   */
   private async capNhatTrangThaiPhong(
     tx: Prisma.TransactionClient,
     phongId: number,
@@ -369,6 +301,7 @@ if (
     const homNay = new Date();
     homNay.setUTCHours(0, 0, 0, 0);
 
+    // Hợp đồng đang hiệu lực có phongId = phòng này (phòng gốc trên hợp đồng)
     const dsHopDong = await tx.hopDong.findMany({
       where: {
         phongId,
@@ -377,123 +310,80 @@ if (
       },
       select: {
         hopDongId: true,
+        nguoiOGhep: {
+          where: { isDelete: false },
+          select: { cccd: true },
+        },
       },
     });
 
+    const tongSoNguoiHopDong = dsHopDong.reduce(
+      (sum, hd) => sum + 1 + hd.nguoiOGhep.length,
+      0,
+    );
+
+    // Trong các hợp đồng trên, hợp đồng nào đang có phiếu luân chuyển đi còn hiệu lực
     const dsLuanChuyenRa = await tx.phieuLuanChuyen.findMany({
       where: {
-        hopDongId: {
-          in: dsHopDong.map((hd) => hd.hopDongId),
-        },
+        hopDongId: { in: dsHopDong.map((hd) => hd.hopDongId) },
         isDelete: false,
-        tuNgay: {
-          lte: homNay,
-        },
-        OR: [
-          {
-            denNgay: null,
-          },
-          {
-            denNgay: {
-              gte: homNay,
-            },
-          },
-        ],
+        tuNgay: { lte: homNay },
+        OR: [{ denNgay: null }, { denNgay: { gte: homNay } }],
       },
-      select: {
-        hopDongId: true,
-      },
+      select: { hopDongId: true },
     });
 
     const hopDongDangLuanChuyen = new Set(
       dsLuanChuyenRa.map((item) => item.hopDongId),
     );
 
-    const coHopDongDangO = dsHopDong.some(
-      (hd) => !hopDongDangLuanChuyen.has(hd.hopDongId),
-    );
+    const soNguoiDaLuanChuyenDi = dsHopDong
+      .filter((hd) => hopDongDangLuanChuyen.has(hd.hopDongId))
+      .reduce((sum, hd) => sum + 1 + hd.nguoiOGhep.length, 0);
 
-    if (coHopDongDangO) {
-      await tx.phong.update({
-        where: {
-          phongId,
-        },
-        data: {
-          trangThai: 1,
-        },
-      });
-
-      return;
-    }
-
-    const coLuanChuyenDen = await tx.phieuLuanChuyen.findFirst({
+    // Số người đang được luân chuyển ĐẾN phòng này, còn hiệu lực, hợp đồng gốc vẫn hiệu lực
+    const dsLuanChuyenDen = await tx.phieuLuanChuyen.findMany({
       where: {
         phongMoiId: phongId,
         isDelete: false,
-
-        // Phiếu đã bắt đầu
-        tuNgay: {
-          lte: homNay,
-        },
-
-        // Chưa kết thúc hoặc vẫn còn hiệu lực
-        OR: [
-          {
-            denNgay: null,
-          },
-          {
-            denNgay: {
-              gte: homNay,
+        tuNgay: { lte: homNay },
+        OR: [{ denNgay: null }, { denNgay: { gte: homNay } }],
+        hopDong: { isDelete: false, trangThai: 1 },
+      },
+      select: {
+        hopDong: {
+          select: {
+            nguoiOGhep: {
+              where: { isDelete: false },
+              select: { cccd: true },
             },
           },
-        ],
-
-        // Hợp đồng vẫn còn tồn tại
-        hopDong: {
-          isDelete: false,
-          trangThai: 1,
         },
-      },
-
-      select: {
-        chiTietLuanChuyenID: true,
-
       },
     });
 
-    if (coLuanChuyenDen) {
-      await tx.phong.update({
-        where: {
-          phongId,
-        },
-        data: {
-          trangThai: 1,
-        },
-      });
+    const soNguoiChuyenDen = dsLuanChuyenDen.reduce(
+      (sum, lc) => sum + 1 + (lc.hopDong?.nguoiOGhep.length ?? 0),
+      0,
+    );
 
+    // Phòng chưa từng có hợp đồng nào và cũng không có ai chuyển tới -> phòng trống
+    if (dsHopDong.length === 0 && soNguoiChuyenDen === 0) {
+      await tx.phong.update({
+        where: { phongId },
+        data: { trangThai: 0 },
+      });
       return;
     }
 
-    if (dsHopDong.length > 0) {
-      await tx.phong.update({
-        where: {
-          phongId,
-        },
-        data: {
-          trangThai: 2,
-        },
-      });
+    const soNguoiConOPhong =
+      tongSoNguoiHopDong - soNguoiDaLuanChuyenDi + soNguoiChuyenDen;
 
-      return;
-    }
+    const trangThaiMoi = soNguoiConOPhong > 0 ? 1 : 2;
 
     await tx.phong.update({
-      where: {
-        phongId,
-      },
-      data: {
-        trangThai: 0,
-      },
+      where: { phongId },
+      data: { trangThai: trangThaiMoi },
     });
   }
 
@@ -549,16 +439,6 @@ if (
       },
     });
   }
-
-  /**
-   * Tự động cập nhật trạng thái phòng cũ.
-   *
-   * 0 = Phòng trống
-   * 1 = Đang thuê
-   * 2 = Đang sửa
-   */
-
-
 
   /**
    * Kiểm tra 1 phòng có đang gắn ÍT NHẤT 1 hợp đồng hiệu lực hay không.
@@ -654,85 +534,7 @@ if (
   * chỉ lấy phiếu còn hiệu lực (chưa có đến ngày, hoặc đến ngày >= hôm nay),
   * mỗi phiếu "trải phẳng" theo từng người trong hợp đồng, kèm cờ isNguoiThueChinh.
   */
-  // async getLuanChuyenPhongMoi(phongId: number) {
-  //   const now = new Date();
-
-  //   const homNay = new Date(
-  //     Date.UTC(
-  //       now.getFullYear(),
-  //       now.getMonth(),
-  //       now.getDate(),
-  //     ),
-  //   );
-
-  //   const phong = await this.prisma.phong.findFirst({
-  //     where: { phongId, isDelete: false },
-  //   });
-
-  //   if (!phong) {
-  //     throw new NotFoundException(`Không tìm thấy phòng #${phongId}`);
-  //   }
-
-  //   const list = await this.prisma.phieuLuanChuyen.findMany({
-  //     where: {
-  //       isDelete: false,
-  //       phongMoiId: phongId,
-  //       tuNgay: {
-  //         lte: homNay,
-  //       },
-  //       OR: [
-  //         { denNgay: null },
-  //         { denNgay: { gte: homNay } },
-  //       ],
-  //     },
-  //     include: {
-  //       phongMoi: true,
-  //       hopDong: {
-  //         include: {
-  //           nguoiDaiDien: true,
-  //           nguoiOGhep: { where: { isDelete: false } },
-  //         },
-  //       },
-  //     },
-  //     orderBy: { chiTietLuanChuyenID: 'desc' },
-  //   });
-
-  //   const result = list.flatMap((phieu) => {
-  //     const { hopDong, ...phieuRest } = phieu;
-  //     if (!hopDong) return [];
-
-  //     const { nguoiDaiDien, nguoiOGhep, ...hopDongRest } = hopDong;
-
-  //     const dsNguoi = [
-  //       ...(nguoiDaiDien && !nguoiDaiDien.isDelete
-  //         ? [
-  //           {
-  //             isNguoiThueChinh: true,
-  //             hoTen: nguoiDaiDien.hoTen,
-  //             sdt: nguoiDaiDien.sdt,
-  //           },
-  //         ]
-  //         : []),
-  //       ...nguoiOGhep.map((ng) => ({
-  //         isNguoiThueChinh: false,
-  //         hoTen: ng.hoTen,
-  //         sdt: ng.sdt,
-  //       })),
-  //     ];
-
-  //     return dsNguoi.map((nguoi) => ({
-  //       phieuLuanChuyen: {
-  //         ...phieuRest,
-  //         hopDong: hopDongRest,
-  //       },
-  //       ...nguoi,
-  //     }));
-  //   });
-
-  //   return result;
-  // }
-
-async getLuanChuyenPhongMoi(phongId: number) {
+  async getLuanChuyenPhongMoi(phongId: number) {
   const homNay = new Date();
   homNay.setHours(0, 0, 0, 0);
 
@@ -837,17 +639,11 @@ async getLuanChuyenPhongMoi(phongId: number) {
       },
     });
 
-    const homNay = new Date();
-    homNay.setHours(0, 0, 0, 0);
-
-    const dangHieuLuc =
-      existing.tuNgay != null &&
-      new Date(existing.tuNgay) <= homNay &&
-      (
-        existing.denNgay == null ||
-        new Date(existing.denNgay) >= homNay
+    if (!existing) {
+      throw new NotFoundException(
+        `Không tìm thấy phiếu luân chuyển #${id}`,
       );
-
+    }
 
     if (
       dto.hopDongId !== undefined &&
@@ -924,6 +720,7 @@ async getLuanChuyenPhongMoi(phongId: number) {
         },
       });
 
+      // Cập nhật lại trạng thái phòng gốc và phòng mới ngay trong transaction
       if (existing.hopDong?.phongId != null) {
         await this.capNhatTrangThaiPhong(
           tx,
@@ -1004,6 +801,7 @@ async getLuanChuyenPhongMoi(phongId: number) {
         },
       });
 
+      // Cập nhật lại trạng thái phòng gốc và phòng mới ngay trong transaction
       if (existing.hopDong?.phongId != null) {
         await this.capNhatTrangThaiPhong(
           tx,
@@ -1029,38 +827,6 @@ async getLuanChuyenPhongMoi(phongId: number) {
         data: null,
       };
     });
-  }
-
-  @Cron('0 0 * * *')
-  async handleCapNhatTrangThaiPhongTheoNgay() {
-    try {
-      const dsPhong = await this.prisma.phong.findMany({
-        where: {
-          isDelete: false,
-        },
-        select: {
-          phongId: true,
-        },
-      });
-
-      for (const phong of dsPhong) {
-        await this.prisma.$transaction(async (tx) => {
-          await this.capNhatTrangThaiPhong(
-            tx,
-            phong.phongId,
-          );
-        });
-      }
-
-      console.log(
-        'Tự động cập nhật trạng thái phòng theo luân chuyển thành công!',
-      );
-    } catch (e) {
-      console.error(
-        'Lỗi tự động cập nhật trạng thái phòng theo luân chuyển:',
-        e,
-      );
-    }
   }
 
 }

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreatePhongDto } from '../dto/create-phong.dto';
 import { UpdatePhongDto } from '../dto/update-phong.dto';
@@ -11,6 +12,62 @@ export class PhongService {
     private thongKeSnapshotService: ThongKeSnapshotService,
   ) { }
 
+
+  @Cron('0 0,12 * * *')
+  async capNhatTrangThaiPhongTheoLuanChuyen() {
+    const homNay = new Date();
+    homNay.setHours(0, 0, 0, 0);
+
+    const dsPhong = await this.prisma.phong.findMany({
+      where: { isDelete: false },
+      include: {
+        HopDong: {
+          where: { isDelete: false, trangThai: 1 },
+          include: {
+            phieuLuanChuyen: {
+              where: {
+                isDelete: false,
+                tuNgay: { lte: homNay },
+                OR: [{ denNgay: null }, { denNgay: { gte: homNay } }],
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const capNhat: { phongId: number; trangThaiMoi: number }[] = [];
+
+    for (const phong of dsPhong) {
+      const tongHopDong = phong.HopDong.length;
+
+      // Không có hợp đồng nào đang hiệu lực -> bỏ qua, không tự động đổi trạng thái
+      if (tongHopDong === 0) continue;
+
+      const soHopDongDaLuanChuyenDi = phong.HopDong.filter((hd) =>
+        hd.phieuLuanChuyen.some((lc) => lc.phongMoiId !== phong.phongId),
+      ).length;
+
+      const trangThaiMoi =
+        soHopDongDaLuanChuyenDi === tongHopDong ? 2 : 1;
+
+      if (phong.trangThai !== trangThaiMoi) {
+        capNhat.push({ phongId: phong.phongId, trangThaiMoi });
+      }
+    }
+
+    if (capNhat.length === 0) return;
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const item of capNhat) {
+        await tx.phong.update({
+          where: { phongId: item.phongId },
+          data: { trangThai: item.trangThaiMoi },
+        });
+      }
+      await this.thongKeSnapshotService.invalidateAll(tx);
+    });
+  }
 
   async findAll() {
     const homNay = new Date();
@@ -32,6 +89,8 @@ export class PhongService {
         phieuLuanChuyenDen: {
           where: {
             isDelete: false,
+
+            tuNgay: { lte: homNay },
             OR: [
               { denNgay: null },
               { denNgay: { gte: homNay } },
@@ -327,7 +386,7 @@ export class PhongService {
     return result;
   }
 
-  
+
   async getCoTheLuanChuyenByHopDong(hopDongId: string) {
     const homNay = new Date();
     homNay.setHours(0, 0, 0, 0);
