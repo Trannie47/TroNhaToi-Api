@@ -328,13 +328,14 @@ model ThietBi {
 }
 
 model LichSuMuaThietBi {
-  id        Int       @id @default(autoincrement())
-  thietBiId Int       @map("thietBiID")
-  soLuong   Int       @default(0)
-  donGia    Decimal   @db.Decimal(10, 2)
-  ngayMua   DateTime  @db.Date
-  ghiChu    String?   @db.VarChar(255)
-  isDelete  Boolean   @default(false)
+  id           Int       @id @default(autoincrement())
+  thietBiId    Int       @map("thietBiID")
+  soLuong      Int       @default(0)
+  donGia       Decimal   @db.Decimal(10, 2)
+  ngayMua      DateTime  @db.Date
+  thangBaoHanh Int       @default(0) @map("ThangBaoHanh")
+  ghiChu       String?   @db.VarChar(255)
+  isDelete     Boolean   @default(false)
 
   thietbi   ThietBi   @relation(fields: [thietBiId], references: [thietBiId], onDelete: Restrict, onUpdate: Restrict, map: "LichSuMua_FK1")
 
@@ -382,6 +383,7 @@ model HoaDonSuaChua {
   loaiSua         Int       @default(0)
   ngayLapHoaDonSc DateTime? @map("ngayLapHoaDonSC") @db.Date
   idSuaChua       Int       @unique
+  ghiChu          String    @default("") @db.VarChar(255)
   isDelete        Boolean   @default(false)
   suachua         SuaChua   @relation(fields: [idSuaChua], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "hoadonsuachua_ibfk_1")
 

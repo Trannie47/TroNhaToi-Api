@@ -67,6 +67,7 @@ export class SuaChuaService {
             giaTien: hoaDonSuaChua.giaTien,
             loaiSua: hoaDonSuaChua.loaiSua,
             ngayLapHoaDonSc: hoaDonSuaChua.ngayLapHoaDonSc,
+            ghiChu: hoaDonSuaChua.ghiChu,
           } as any,
         });
       }
@@ -116,6 +117,7 @@ export class SuaChuaService {
               giaTien: hoaDonSuaChua.giaTien,
               loaiSua: hoaDonSuaChua.loaiSua,
               ngayLapHoaDonSc: hoaDonSuaChua.ngayLapHoaDonSc,
+              ghiChu: hoaDonSuaChua.ghiChu,
             },
           });
         } else {
@@ -128,6 +130,7 @@ export class SuaChuaService {
               giaTien: hoaDonSuaChua.giaTien,
               loaiSua: hoaDonSuaChua.loaiSua,
               ngayLapHoaDonSc: hoaDonSuaChua.ngayLapHoaDonSc,
+              ghiChu: hoaDonSuaChua.ghiChu,
             },
           });
         }

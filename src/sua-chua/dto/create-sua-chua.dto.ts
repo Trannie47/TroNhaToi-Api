@@ -34,6 +34,11 @@ export class CreateHoaDonSuaChuaInlineDto {
   @IsOptional()
   @IsString()
   ngayLapHoaDonSc?: string;
+
+  @ApiPropertyOptional({ description: 'Ghi chú' })
+  @IsOptional()
+  @IsString()
+  ghiChu?: string;
 }
 
 export class CreateSuaChuaDto {
@@ -74,4 +79,4 @@ export class CreateSuaChuaDto {
   hoaDonSuaChua?: CreateHoaDonSuaChuaInlineDto;
 }
 
-export class UpdateSuaChuaDto extends PartialType(CreateSuaChuaDto) { }
+export class UpdateSuaChuaDto extends PartialType(CreateSuaChuaDto) { } 

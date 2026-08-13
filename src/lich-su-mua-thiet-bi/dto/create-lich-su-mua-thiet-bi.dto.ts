@@ -19,6 +19,12 @@ export class CreateLichSuMuaThietBiDto {
   @IsDateString()
   ngayMua: string;
 
+  @ApiPropertyOptional({ description: 'Số tháng bảo hành', default: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  thangBaoHanh?: number;
+
   @ApiPropertyOptional({ description: 'Ghi chú' })
   @IsOptional()
   @IsString()

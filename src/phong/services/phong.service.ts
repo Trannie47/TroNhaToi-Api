@@ -268,7 +268,6 @@ export class PhongService {
 
     const lapRapIds = dsLapRap.map((lr) => lr.id);
 
-    // Tra cứu sự cố sửa chữa theo đúng bản ghi lắp ráp (lapRapId), không còn qua phongId nữa
     const dsSuaChua = await this.prisma.suaChua.findMany({
       where: {
         lapRapId: { in: lapRapIds },
@@ -292,42 +291,44 @@ export class PhongService {
       } else if (!hoaDon || hoaDon.trangThai === 0) {
         current.dangSua = true;
       }
-      // trangThai === 1 hoặc 2: không tính
 
       thongKeTheoLapRap.set(sc.lapRapId, current);
     }
 
-    const result = dsLapRap
-      .filter((lr) => {
-        if (lr.phongId == null) return false;
+    const dsHopLe = dsLapRap.filter((lr) => {
+      if (lr.phongId == null) return false;
 
-        // Mỗi LapRap giờ là 1 thiết bị cụ thể — chỉ tính là "còn dùng được"
-        // nếu không đang sửa chữa và không hỏng
-        const thongKe = thongKeTheoLapRap.get(lr.id) ?? { dangSua: false, hong: false };
-        return !thongKe.dangSua && !thongKe.hong;
-      })
-      .map((lr) => {
-        const phong = lr.phong as any;
+      
+      const thongKe = thongKeTheoLapRap.get(lr.id) ?? { dangSua: false, hong: false };
+      return !thongKe.dangSua && !thongKe.hong;
+    });
 
-        let giahientai = 0;
-        if (phong.HopDong && phong.HopDong.length > 0) {
-          giahientai = phong.HopDong.reduce(
-            (sum: number, hd: any) => sum + (hd.giaPhongThucTe || 0),
-            0,
-          );
-        } else {
-          giahientai = phong.loaiPhong?.giaTien || 0;
-        }
+    const phongMap = new Map<number, any>();
 
-        return {
-          ...phong,
-          giahientai,
-        };
+    for (const lr of dsHopLe) {
+      const phong = lr.phong as any;
+      const phongId = lr.phongId as number;
+
+      if (phongMap.has(phongId)) continue;
+
+      let giahientai = 0;
+      if (phong.HopDong && phong.HopDong.length > 0) {
+        giahientai = phong.HopDong.reduce(
+          (sum: number, hd: any) => sum + (hd.giaPhongThucTe || 0),
+          0,
+        );
+      } else {
+        giahientai = phong.loaiPhong?.giaTien || 0;
+      }
+
+      phongMap.set(phongId, {
+        ...phong,
+        giahientai,
       });
+    }
 
-    return result;
+    return Array.from(phongMap.values());
   }
-
   async remove(id: number) {
     await this.findOne(id);
     const hopDongConHieuLuc = await this.prisma.hopDong.findFirst({
