@@ -320,9 +320,12 @@ model ThietBi {
   loai       String?   @db.VarChar(100)
   trangThai  Int?      @default(0)
   isDelete   Boolean   @default(false)
+  ghiChu       String?   @db.VarChar(255)
+
   laprap     LapRap[]
   suachua    SuaChua[]
   lichSuMua  LichSuMuaThietBi[]
+
 
   @@map("thietbi")
 }

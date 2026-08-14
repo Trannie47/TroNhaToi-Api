@@ -17,6 +17,13 @@ export class CreateThietBiDto {
   @IsOptional()
   @IsInt()
   trangThai?: number;
+  
+  @ApiPropertyOptional({
+    description: 'Ghi chú',
+  })
+  @IsOptional()
+  @IsString()
+  ghiChu?: string;
 }
 
 export class UpdateThietBiDto extends PartialType(CreateThietBiDto) {}
