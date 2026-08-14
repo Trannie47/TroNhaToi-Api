@@ -248,6 +248,14 @@ export class HopDongService {
       },
     });
 
+    // Không cho 1 người đại diện đứng tên 2 hợp đồng riêng biệt cùng đang hiệu lực/chờ hiệu lực
+    // với CHÍNH phòng này (đại diện nhiều phòng khác nhau thì vẫn được phép).
+    if (hopDongDangHoatDong.some((hd) => hd.idntDaiDien === idntDaiDien)) {
+      throw new BadRequestException(
+        'Người này đang đứng đại diện 1 hợp đồng khác còn hiệu lực với chính phòng này, không thể tạo thêm hợp đồng mới.',
+      );
+    }
+
     let soNguoiDangOTrongPhong = 1 + danhSachNguoiOGhep.length;
 
     // Người thuộc các hợp đồng đang gắn với phòng.

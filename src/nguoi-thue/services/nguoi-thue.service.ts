@@ -45,9 +45,8 @@ export class NguoiThueService {
     return mocTinhTuoi;
   }
 
-  // Danh sách người đủ điều kiện làm người đại diện hợp đồng.
-  // Người đang có hợp đồng khác vẫn được phép xuất hiện vì có thể đứng tên nhiều hợp đồng.
-  async getNguoiThueAvailableForRepresentative(ngayKy?: string) {
+
+  async getNguoiThueAvailableForRepresentative(ngayKy?: string, phongId?: number) {
     const mocTinhTuoi = this.parseMocTinhTuoi(ngayKy);
     const danhSach = await this.prisma.nguoiThue.findMany({
       where: { isDelete: false },
@@ -60,9 +59,23 @@ export class NguoiThueService {
       orderBy: { hoTen: 'asc' },
     });
 
+    let dsIdntDaDaiDienPhongNay = new Set<number>();
+    if (phongId !== undefined && !Number.isNaN(phongId)) {
+      const hopDongDangHoatDongCuaPhong = await this.prisma.hopDong.findMany({
+        where: { phongId, isDelete: false, trangThai: { in: [0, 1] } },
+        select: { idntDaiDien: true },
+      });
+      dsIdntDaDaiDienPhongNay = new Set(
+        hopDongDangHoatDongCuaPhong.map((hd) => hd.idntDaiDien),
+      );
+    }
+
     return danhSach
       .filter((nguoiThue) => {
         if (!nguoiThue.ngaySinh) {
+          return false;
+        }
+        if (dsIdntDaDaiDienPhongNay.has(nguoiThue.idnt)) {
           return false;
         }
 
@@ -76,8 +89,8 @@ export class NguoiThueService {
   }
 
 
-  async getNguoiThueAvailableForContract(ngayKy?: string) {
-    return this.getNguoiThueAvailableForRepresentative(ngayKy);
+  async getNguoiThueAvailableForContract(ngayKy?: string, phongId?: number) {
+    return this.getNguoiThueAvailableForRepresentative(ngayKy, phongId);
   }
 
   // Lấy danh sách hợp đồng mà người này đứng đại diện 

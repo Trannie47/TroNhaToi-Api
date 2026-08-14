@@ -84,6 +84,39 @@ describe('NguoiThueService', () => {
         );
     });
 
+    it('loại người đang đại diện hợp đồng hiệu lực của CHÍNH phòng đó khi có truyền phongId', async () => {
+        const homNay = new Date();
+        const ngaySinhU18 = new Date(homNay.getFullYear() - 25, 0, 1); // đủ 18 tuổi
+        mockPrisma.nguoiThue.findMany.mockResolvedValue([
+            { idnt: 1, hoTen: 'Nguyễn Văn A', ngaySinh: ngaySinhU18 }, // đang đại diện hợp đồng phòng 2
+            { idnt: 2, hoTen: 'Trần Văn B', ngaySinh: ngaySinhU18 },
+        ]);
+        mockPrisma.hopDong.findMany.mockResolvedValue([
+            { idntDaiDien: 1 }, // hợp đồng hiệu lực của phòng 2, đại diện là idnt=1
+        ]);
+
+        const result = await service.getNguoiThueAvailableForRepresentative(undefined, 2);
+
+        expect(mockPrisma.hopDong.findMany).toHaveBeenCalledWith({
+            where: { phongId: 2, isDelete: false, trangThai: { in: [0, 1] } },
+            select: { idntDaiDien: true },
+        });
+        expect(result.map((n) => n.idnt)).toEqual([2]); // idnt=1 bị loại vì đã đại diện phòng này
+    });
+
+    it('không lọc theo phòng khi không truyền phongId (giữ hành vi cũ)', async () => {
+        const homNay = new Date();
+        const ngaySinhU18 = new Date(homNay.getFullYear() - 25, 0, 1);
+        mockPrisma.nguoiThue.findMany.mockResolvedValue([
+            { idnt: 1, hoTen: 'Nguyễn Văn A', ngaySinh: ngaySinhU18 },
+        ]);
+
+        const result = await service.getNguoiThueAvailableForRepresentative();
+
+        expect(mockPrisma.hopDong.findMany).not.toHaveBeenCalled();
+        expect(result.map((n) => n.idnt)).toEqual([1]);
+    });
+
     it('lấy phòng đang gắn với người thuê', async () => {
         const contracts = [
             { hopDongId: 'HD1', phong: { phongId: 1 }, isDelete: false },

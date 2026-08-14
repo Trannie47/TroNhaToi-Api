@@ -12,6 +12,7 @@ const mockThongKeSnapshot = {
 const mockPrisma = {
   phong: {
     findMany:  jest.fn(),
+    findFirst: jest.fn(),
     findUnique: jest.fn(),
     create:    jest.fn(),
     update:    jest.fn(),
@@ -55,6 +56,31 @@ describe('PhongService', () => {
   // ── Smoke ──────────────────────────────────────────────────────────
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  // ── getListNguoiThueByPhongId ─────────────────────────────────────
+  it('gộp người thuê từ 2 hợp đồng độc lập trong cùng 1 phòng (đại diện riêng biệt)', async () => {
+    mockPrisma.phong.findFirst.mockResolvedValue({
+      phongId: 1,
+      HopDong: [
+        {
+          hopDongId: 'HD-A',
+          trangThai: 1,
+          nguoiDaiDien: { idnt: 1, hoTen: 'Nguyễn A', isDelete: false },
+          nguoiOGhep: [{ cccd: 'X1', hoTen: 'Thành viên A1' }],
+        },
+        {
+          hopDongId: 'HD-B',
+          trangThai: 1,
+          nguoiDaiDien: { idnt: 2, hoTen: 'Trần B', isDelete: false },
+          nguoiOGhep: [],
+        },
+      ],
+    });
+
+    const result = await service.getListNguoiThueByPhongId(1);
+
+    expect(result).toHaveLength(3); // đại diện A + thành viên A1 + đại diện B
   });
 
   // ── findAll ────────────────────────────────────────────────────────

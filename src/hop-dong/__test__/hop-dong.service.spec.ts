@@ -192,6 +192,24 @@ describe('HopDongService', () => {
             expect(mockThongKeSnapshot.invalidateAll).toHaveBeenCalledWith(mockPrisma);
         });
 
+        it('không cho 1 người đại diện đứng tên 2 hợp đồng hiệu lực với CHÍNH phòng đó', async () => {
+            mockPrisma.phong.findUnique.mockResolvedValue({
+                phongId: 2,
+                isDelete: false,
+                loaiPhong: { soNguoiToiDa: 5, giaTien: 2000000 },
+            });
+            // Phòng đã có 1 hợp đồng hiệu lực khác, với CÙNG idntDaiDien = 1 (giống CREATE_DTO)
+            mockPrisma.hopDong.findMany.mockResolvedValue([
+                { hopDongId: 'HD-EXISTING', idntDaiDien: 1, nguoiOGhep: [] },
+            ]);
+
+            await expect(service.create(CREATE_DTO, [])).rejects.toThrow(
+                BadRequestException,
+            );
+            expect(mockPrisma.hopDong.create).not.toHaveBeenCalled();
+            expect(mockThongKeSnapshot.invalidateAll).not.toHaveBeenCalled();
+        });
+
         it('không tạo khi phòng không tồn tại', async () => {
             mockPrisma.phong.findUnique.mockResolvedValue(null);
 

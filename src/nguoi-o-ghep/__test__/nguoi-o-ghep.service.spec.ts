@@ -9,7 +9,12 @@ describe('NguoiOGhepService', () => {
 
   beforeEach(async () => {
     prisma = {
-      hopDong: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+      hopDong: {
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn(),
+      },
       nguoiOGhep: {
         count: jest.fn().mockResolvedValue(0),
         findMany: jest.fn().mockResolvedValue([]),
@@ -53,6 +58,24 @@ describe('NguoiOGhepService', () => {
         phong: { loaiPhong: { soNguoiToiDa: 1 } }, // 1 đại diện đã chiếm hết chỗ
       });
       await expect(service.themNguoiOGhep(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when room is full due to ANOTHER contract sharing the same room', async () => {
+      prisma.hopDong.findUnique.mockResolvedValue({
+        hopDongId: 'HD001',
+        trangThai: 1,
+        phong: { phongId: 5, loaiPhong: { soNguoiToiDa: 2 } },
+      });
+      // Hợp đồng KHÁC (HD002) cùng phòng 5, đang chiếm 2/2 chỗ (1 đại diện + 1 ở ghép)
+      prisma.hopDong.findMany.mockResolvedValue([
+        {
+          hopDongId: 'HD002',
+          nguoiOGhep: [{ cccd: '999999999999' }],
+        },
+      ]);
+
+      await expect(service.themNguoiOGhep(dto)).rejects.toThrow(BadRequestException);
+      expect(prisma.nguoiOGhep.upsert).not.toHaveBeenCalled();
     });
 
     it('should add nguoi o ghep successfully', async () => {

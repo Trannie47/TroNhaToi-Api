@@ -40,7 +40,23 @@ export class NguoiOGhepService {
       (cccd) => !cccdDaCoTrongHopDongNay.some((n) => n.cccd === cccd),
     ).length;
 
-    if (1 + soNguoiOGhepHienTai + soNguoiThemThatSu > soNguoiToiDa) {
+    // Cộng dồn cả các hợp đồng KHÁC đang hiệu lực/chờ hiệu lực chung phòng này, vì phòng
+    // có thể có nhiều hợp đồng độc lập cùng chia sẻ 1 sức chứa (giống check khi tạo/sửa hợp đồng).
+    const hopDongKhacTrongPhong = await this.prisma.hopDong.findMany({
+      where: {
+        phongId: hopDong.phong?.phongId,
+        hopDongId: { not: dto.hopDongId },
+        isDelete: false,
+        trangThai: { in: [0, 1] },
+      },
+      include: { nguoiOGhep: { where: { isDelete: false }, select: { cccd: true } } },
+    });
+    let soNguoiOGhepHopDongKhac = 0;
+    for (const hd of hopDongKhacTrongPhong) {
+      soNguoiOGhepHopDongKhac += 1 + hd.nguoiOGhep.length;
+    }
+
+    if (1 + soNguoiOGhepHienTai + soNguoiThemThatSu + soNguoiOGhepHopDongKhac > soNguoiToiDa) {
       throw new BadRequestException(`Phòng chỉ chứa tối đa ${soNguoiToiDa} người.`);
     }
 

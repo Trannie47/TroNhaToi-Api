@@ -31,8 +31,19 @@ export class NguoiThueController {
     required: false,
     description: 'Ngày bắt đầu hợp đồng dùng để tính tuổi, định dạng YYYY-MM-DD',
   })
-  async getNguoiThueAvailableForContract(@Query('ngayKy') ngayKy?: string) {
-    return this.nguoiThueService.getNguoiThueAvailableForRepresentative(ngayKy);
+  @ApiQuery({
+    name: 'phongId',
+    required: false,
+    description: 'ID phòng đang tạo hợp đồng - loại bỏ người đang đại diện hợp đồng hiệu lực của chính phòng này',
+  })
+  async getNguoiThueAvailableForContract(
+    @Query('ngayKy') ngayKy?: string,
+    @Query('phongId') phongId?: string,
+  ) {
+    return this.nguoiThueService.getNguoiThueAvailableForRepresentative(
+      ngayKy,
+      phongId !== undefined ? Number(phongId) : undefined,
+    );
   }
 
   @Get('available-representatives')
@@ -42,8 +53,19 @@ export class NguoiThueController {
     required: false,
     description: 'Ngày bắt đầu hợp đồng dùng để tính tuổi, định dạng YYYY-MM-DD',
   })
-  getAvailableRepresentatives(@Query('ngayKy') ngayKy?: string) {
-    return this.nguoiThueService.getNguoiThueAvailableForRepresentative(ngayKy);
+  @ApiQuery({
+    name: 'phongId',
+    required: false,
+    description: 'ID phòng đang tạo hợp đồng - loại bỏ người đang đại diện hợp đồng hiệu lực của chính phòng này',
+  })
+  getAvailableRepresentatives(
+    @Query('ngayKy') ngayKy?: string,
+    @Query('phongId') phongId?: string,
+  ) {
+    return this.nguoiThueService.getNguoiThueAvailableForRepresentative(
+      ngayKy,
+      phongId !== undefined ? Number(phongId) : undefined,
+    );
   }
 
 
