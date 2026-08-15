@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { PhongService } from '../services/phong.service';
 import { CreatePhongDto } from '../dto/create-phong.dto';
 import { UpdatePhongDto } from '../dto/update-phong.dto';
@@ -28,6 +28,20 @@ export class PhongController {
   @ApiOperation({ summary: 'Lấy danh sách phòng còn chỗ trống, sắp xếp theo số chỗ còn lại giảm dần' })
   findPhongConChoTrong() {
     return this.phongService.findPhongConChoTrong();
+  }
+
+  @Get('cho-o-ghep')
+  @ApiOperation({ summary: 'Danh sách phòng có thể chọn khi tạo hợp đồng Ở GHÉP' })
+  @ApiQuery({ name: 'soNguoi', description: 'Số người muốn thêm vào phòng', type: Number })
+  findPhongChoOGhep(@Query('soNguoi', ParseIntPipe) soNguoi: number) {
+    return this.phongService.findPhongChoOGhep(soNguoi);
+  }
+
+  @Get('cho-o-mot-minh')
+  @ApiOperation({ summary: 'Danh sách phòng có thể chọn khi tạo hợp đồng Ở MỘT MÌNH' })
+  @ApiQuery({ name: 'soNguoi', description: 'Số người sẽ ở', type: Number })
+  findPhongChoOMotMinh(@Query('soNguoi', ParseIntPipe) soNguoi: number) {
+    return this.phongService.findPhongChoOMotMinh(soNguoi);
   }
 
   @Get('thiet-bi/:thietBiId')

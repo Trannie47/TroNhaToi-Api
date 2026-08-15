@@ -12,6 +12,50 @@ export class PhongService {
     private thongKeSnapshotService: ThongKeSnapshotService,
   ) { }
 
+
+  private parseNgayTheoLich(value?: string | Date | null): Date {
+    if (!value) {
+      const now = new Date();
+      return new Date(Date.UTC(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+      ));
+    }
+
+    if (value instanceof Date) {
+      return new Date(Date.UTC(
+        value.getUTCFullYear(),
+        value.getUTCMonth(),
+        value.getUTCDate(),
+      ));
+    }
+
+    const ngay = value.split('T')[0].split(' ')[0];
+    const parts = ngay.split('-').map(Number);
+    if (
+      parts.length !== 3 ||
+      !parts.every((part) => Number.isInteger(part))
+    ) {
+      throw new BadRequestException('Ngày hợp đồng không hợp lệ.');
+    }
+
+    const [year, month, day] = parts;
+    const result = new Date(Date.UTC(year, month - 1, day));
+    if (
+      result.getUTCFullYear() !== year ||
+      result.getUTCMonth() !== month - 1 ||
+      result.getUTCDate() !== day
+    ) {
+      throw new BadRequestException('Ngày hợp đồng không hợp lệ.');
+    }
+
+    return result;
+  }
+  private ngayHomNayTheoLich(): Date {
+    return this.parseNgayTheoLich();
+  }
+
   /**
    * Tự động đồng bộ trạng thái phòng, chạy 2 lần/ngày: 00:00 và 12:00.
    *
@@ -185,6 +229,181 @@ export class PhongService {
         soNguoiHienTai,
       };
     });
+  }
+
+  /**
+ * Danh sách phòng có thể chọn khi tạo hợp đồng "Ở GHÉP"
+ * @param soNguoi số người muốn thêm vào phòng
+ */
+  async findPhongChoOGhep(soNguoi: number) {
+    const rooms = await this.prisma.phong.findMany({
+      where: {
+        isDelete: false,
+        trangThai: { in: [0, 1] },
+      },
+      include: {
+        loaiPhong: true,
+        HopDong: {
+          where: {
+            isDelete: false,
+            trangThai: { in: [0, 1] },
+          },
+          include: {
+            nguoiOGhep: { where: { isDelete: false }, select: { cccd: true } },
+          },
+        },
+      },
+    });
+
+    const homNay = this.ngayHomNayTheoLich();
+
+    const result = await Promise.all(
+      rooms.map(async (phong) => {
+        let soNguoiHienTai = 0;
+        let coHopDongOMotMinh = false;
+
+        for (const hopDong of phong.HopDong) {
+          soNguoiHienTai += 1 + hopDong.nguoiOGhep.length;
+          if (hopDong.hinhThucO === true) {
+            coHopDongOMotMinh = true;
+          }
+        }
+
+        const dsLuanChuyenDen = await this.prisma.phieuLuanChuyen.findMany({
+          where: {
+            phongMoiId: phong.phongId,
+            isDelete: false,
+            tuNgay: { lte: homNay },
+            OR: [{ denNgay: null }, { denNgay: { gte: homNay } }],
+            hopDong: { isDelete: false, trangThai: 1 },
+          },
+          select: {
+            hopDong: {
+              select: {
+                hinhThucO: true,
+                nguoiOGhep: {
+                  where: { isDelete: false },
+                  select: { cccd: true },
+                },
+              },
+            },
+          },
+        });
+
+        for (const phieu of dsLuanChuyenDen) {
+          soNguoiHienTai += 1 + phieu.hopDong.nguoiOGhep.length;
+          if (phieu.hopDong.hinhThucO === true) {
+            coHopDongOMotMinh = true;
+          }
+        }
+
+        const soNguoiToiDa = phong.loaiPhong?.soNguoiToiDa ?? null;
+
+        return {
+          id: phong.phongId,
+          tenPhong: phong.tenPhong,
+          giaPhongGoc: phong.loaiPhong?.giaTien ?? 0,
+          soNguoiHienTai,
+          soNguoiToiDa,
+          soChoConLai:
+            soNguoiToiDa !== null
+              ? Math.max(soNguoiToiDa - soNguoiHienTai, 0)
+              : null,
+          coHopDongOMotMinh,
+        };
+      }),
+    );
+
+    return result
+      .filter(
+        (phong) =>
+          !phong.coHopDongOMotMinh &&
+          phong.soNguoiToiDa !== null &&
+          phong.soNguoiToiDa - phong.soNguoiHienTai >= soNguoi,
+      )
+      .map(({ coHopDongOMotMinh, ...phong }) => phong);
+  }
+
+  /**
+   * Danh sách phòng có thể chọn khi tạo hợp đồng "Ở MỘT MÌNH"
+   * @param soNguoi số người sẽ ở
+   */
+  async findPhongChoOMotMinh(soNguoi: number) {
+    const rooms = await this.prisma.phong.findMany({
+      where: {
+        isDelete: false,
+        trangThai: 0,
+      },
+      include: {
+        loaiPhong: true,
+        HopDong: {
+          where: {
+            isDelete: false,
+            trangThai: { in: [0, 1] },
+          },
+          include: {
+            nguoiOGhep: { where: { isDelete: false }, select: { cccd: true } },
+          },
+        },
+      },
+    });
+
+    const homNay = this.ngayHomNayTheoLich();
+
+    const result = await Promise.all(
+      rooms.map(async (phong) => {
+        let soNguoiHienTai = 0;
+
+        for (const hopDong of phong.HopDong) {
+          soNguoiHienTai += 1 + hopDong.nguoiOGhep.length;
+        }
+
+        const dsLuanChuyenDen = await this.prisma.phieuLuanChuyen.findMany({
+          where: {
+            phongMoiId: phong.phongId,
+            isDelete: false,
+            tuNgay: { lte: homNay },
+            OR: [{ denNgay: null }, { denNgay: { gte: homNay } }],
+            hopDong: { isDelete: false, trangThai: 1 },
+          },
+          select: {
+            hopDong: {
+              select: {
+                nguoiOGhep: {
+                  where: { isDelete: false },
+                  select: { cccd: true },
+                },
+              },
+            },
+          },
+        });
+
+        for (const phieu of dsLuanChuyenDen) {
+          soNguoiHienTai += 1 + phieu.hopDong.nguoiOGhep.length;
+        }
+
+        const soNguoiToiDa = phong.loaiPhong?.soNguoiToiDa ?? null;
+
+        return {
+          id: phong.phongId,
+          tenPhong: phong.tenPhong,
+          giaPhongGoc: phong.loaiPhong?.giaTien ?? 0,
+          soNguoiHienTai,
+          soNguoiToiDa,
+          soChoConLai:
+            soNguoiToiDa !== null
+              ? Math.max(soNguoiToiDa - soNguoiHienTai, 0)
+              : null,
+        };
+      }),
+    );
+
+    return result.filter(
+      (phong) =>
+        phong.soNguoiHienTai === 0 &&
+        phong.soNguoiToiDa !== null &&
+        phong.soNguoiToiDa >= soNguoi,
+    );
   }
 
   async getListNguoiThueByPhongId(phongId: number) {
@@ -417,7 +636,7 @@ export class PhongService {
     return result;
   }
 
-  
+
   async getCoTheLuanChuyenByHopDong(hopDongId: string) {
     const homNay = new Date();
     homNay.setUTCHours(0, 0, 0, 0);
@@ -492,6 +711,9 @@ export class PhongService {
         const phong = p as any;
         const soNguoiToiDa = phong.loaiPhong?.soNguoiToiDa ?? null;
 
+        // Phòng đang có hợp đồng "Ở MỘT MÌNH" đang hiệu lực -> không cho chuyển vào
+        const dangOMotMinh = phong.HopDong.some((hd: any) => hd.hinhThucO === true);
+
         const soNguoiTuHopDong = phong.HopDong.reduce((sum: number, hd: any) => {
           const soDaiDien = hd.nguoiDaiDien && !hd.nguoiDaiDien.isDelete ? 1 : 0;
           return sum + soDaiDien + hd.nguoiOGhep.length;
@@ -514,12 +736,13 @@ export class PhongService {
 
         return {
           ...phong,
+          dangOMotMinh,
           soNguoiDangO,
           soNguoiChuyenQua,
           soChoConLai,
         };
       })
-      .filter((phong) => phong.soChoConLai !== null && phong.soChoConLai >= 0)
+      .filter((phong) => !phong.dangOMotMinh && phong.soChoConLai !== null && phong.soChoConLai >= 0)
       .sort((a, b) => (b.soChoConLai ?? 0) - (a.soChoConLai ?? 0));
 
     return result;
