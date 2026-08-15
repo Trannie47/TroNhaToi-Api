@@ -934,10 +934,13 @@ export class HopDongService {
 
     const { phongId, idntDaiDien } = existingHopDong;
 
-    //KIỂM TRA NỢ HÓA ĐƠN PHÒNG
+    //KIỂM TRA NỢ HÓA ĐƠN PHÒNG - gồm cả các phiên bản hợp đồng tiền thân (do đổi giá tách phiên
+    // bản mới - LUỒNG 2 của update()), tránh nợ của bản cũ bị "mất dấu" khi bản mới không còn nợ.
+    const dsHopDongLienQuan = await this.timChuoiHopDongLienQuan(id, phongId, idntDaiDien);
+
     const hoaDonPhongChuaTra = await this.prisma.hoaDonPhong.findFirst({
       where: {
-        hopDongId: id, // Kiểm tra theo hợp đồng này
+        hopDongId: { in: dsHopDongLienQuan },
         trangThai: { not: 2 }, // 2 là Đã thanh toán
         isDelete: false,
       },
@@ -945,7 +948,9 @@ export class HopDongService {
 
     if (hoaDonPhongChuaTra) {
       throw new BadRequestException(
-        'Hợp đồng này vẫn còn hóa đơn tiền phòng chưa thanh toán xong. Không thể kết thúc!',
+        hoaDonPhongChuaTra.hopDongId === id
+          ? 'Hợp đồng này vẫn còn hóa đơn tiền phòng chưa thanh toán xong. Không thể kết thúc!'
+          : `Hợp đồng vẫn còn hóa đơn tiền phòng chưa thanh toán (hợp đồng ${hoaDonPhongChuaTra.hopDongId}, kỳ ${hoaDonPhongChuaTra.thangNam}). Không thể kết thúc!`,
       );
     }
 
@@ -1074,6 +1079,42 @@ export class HopDongService {
     } catch (e) {
       console.error('Lỗi khi chạy cron job kích hoạt hợp đồng:', e);
     }
+  }
+
+  // Dò ngược chuỗi "hợp đồng tiền thân" của 1 hợp đồng (sinh ra khi update() đổi giá tách phiên
+  // bản mới): cùng phòng, cùng người đại diện, ngày hết hạn bản trước + 1 ngày = ngày
+  // ký bản đang xét. Trả về mảng hopDongId gồm chính nó + toàn bộ các phiên bản trước đó.
+  private async timChuoiHopDongLienQuan(
+    hopDongId: string,
+    phongId: number | null,
+    idntDaiDien: number,
+  ): Promise<string[]> {
+    if (!phongId) return [hopDongId];
+
+    const ungVien = await this.prisma.hopDong.findMany({
+      where: { phongId, idntDaiDien, isDelete: false },
+      select: { hopDongId: true, ngayKy: true, ngayHetHan: true },
+    });
+
+    const dsChuoi = [hopDongId];
+    let dangXet = ungVien.find((hd) => hd.hopDongId === hopDongId);
+
+    while (dangXet?.ngayKy) {
+      const tienThan = ungVien.find((hd) => {
+        if (dsChuoi.includes(hd.hopDongId) || !hd.ngayHetHan) return false;
+
+        const ngayKyTiepTheo = new Date(hd.ngayHetHan);
+        ngayKyTiepTheo.setDate(ngayKyTiepTheo.getDate() + 1);
+
+        return new Date(dangXet!.ngayKy!).toDateString() === ngayKyTiepTheo.toDateString();
+      });
+
+      if (!tienThan) break;
+      dsChuoi.push(tienThan.hopDongId);
+      dangXet = tienThan;
+    }
+
+    return dsChuoi;
   }
 
   private tinhTuoi(ngaySinh: Date, mocTinhTuoi: Date): number {

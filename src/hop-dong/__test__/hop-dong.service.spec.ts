@@ -480,6 +480,32 @@ describe('HopDongService', () => {
             expect(mockPrisma.$transaction).not.toHaveBeenCalled();
         });
 
+        it('chặn kết thúc khi hợp đồng TIỀN THÂN (phiên bản trước do đổi giá - LUỒNG 2) còn nợ hóa đơn phòng chưa thanh toán', async () => {
+            const HOP_DONG_B = { ...MOCK_ITEM, hopDongId: 'HD-B', ngayKy: new Date('2024-02-01'), trangThai: 1 };
+            const HOP_DONG_A = { hopDongId: 'HD-A', ngayKy: new Date('2024-01-01'), ngayHetHan: new Date('2024-01-31') };
+
+            mockPrisma.hopDong.findFirst.mockResolvedValueOnce(HOP_DONG_B); // findOne
+            // Danh sách "ứng viên" cùng phòng + cùng đại diện: HD-B (đang xét) và HD-A (tiền thân)
+            mockPrisma.hopDong.findMany.mockResolvedValue([
+                { hopDongId: 'HD-B', ngayKy: HOP_DONG_B.ngayKy, ngayHetHan: null },
+                HOP_DONG_A,
+            ]);
+            // HD-B tự nó không nợ gì, nợ nằm ở HD-A (phiên bản cũ trước khi đổi giá)
+            mockPrisma.hoaDonPhong.findFirst.mockResolvedValue({
+                hopDongId: 'HD-A',
+                thangNam: '01/2024',
+                trangThai: 0,
+            });
+
+            await expect(service.terminateContract('HD-B')).rejects.toThrow(BadRequestException);
+            expect(mockPrisma.hoaDonPhong.findFirst).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: expect.objectContaining({ hopDongId: { in: ['HD-B', 'HD-A'] } }),
+                }),
+            );
+            expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+        });
+
         it('chặn kết thúc khi còn nợ tạp hóa của đại diện', async () => {
             mockPrisma.hopDong.findFirst.mockResolvedValueOnce({ ...MOCK_ITEM, trangThai: 1 });
             mockPrisma.hoaDonPhong.findFirst.mockResolvedValue(null);
