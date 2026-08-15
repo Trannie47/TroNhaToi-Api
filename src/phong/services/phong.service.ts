@@ -13,6 +13,29 @@ export class PhongService {
   ) { }
 
 
+  private ngayHomNayTheoLich(): Date {
+    const now = new Date();
+    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  }
+
+  /**
+   * Tự động đồng bộ trạng thái phòng, chạy 2 lần/ngày: 00:00 và 12:00.
+   *
+   * Với mỗi phòng, so sánh:
+   * - tongHopDong: số hợp đồng ĐANG HIỆU LỰC (trangThai = 1) của phòng
+   * - soHopDongDaLuanChuyenDi: trong số đó, có bao nhiêu hợp đồng đang có
+   *   1 phiếu luân chuyển ĐANG HIỆU LỰC (tuNgay <= hôm nay <= denNgay/null)
+   *   chuyển sang phòng KHÁC (phongMoiId != phòng hiện tại)
+   *
+   * - Nếu soHopDongDaLuanChuyenDi === tongHopDong (tất cả đã chuyển đi hết)
+   *   -> phòng coi như trống người ở -> trangThai = 2 (đang sửa)
+   * - Ngược lại (còn ít nhất 1 hợp đồng chưa chuyển đi)
+   *   -> trangThai = 1 (đang thuê)
+   *
+   * Phòng KHÔNG có hợp đồng nào đang hiệu lực thì bỏ qua, không tự đổi
+   * trạng thái (tránh ghi đè phòng đang được set thủ công, ví dụ đang sửa
+   * chờ khách mới).
+   */
   @Cron('0 0,12 * * *')
   async capNhatTrangThaiPhongTheoLuanChuyen() {
     const homNay = this.ngayHomNayTheoLich();
@@ -87,7 +110,12 @@ export class PhongService {
         phieuLuanChuyenDen: {
           where: {
             isDelete: false,
-
+            // CHỈ tính là "đang luân chuyển đến / còn hiệu lực" khi:
+            // - Đã tới ngày bắt đầu luân chuyển (tuNgay <= hôm nay)
+            // - VÀ chưa hết hạn luân chuyển (denNgay null hoặc >= hôm nay)
+            // (đồng bộ với getCoTheLuanChuyenByHopDong bên dưới, trước đây
+            // chỗ này thiếu điều kiện tuNgay nên phiếu chưa tới ngày bắt đầu
+            // vẫn bị tính nhầm vào soNguoiHienTai)
             tuNgay: { lte: homNay },
             OR: [
               { denNgay: null },
@@ -161,6 +189,181 @@ export class PhongService {
         soNguoiHienTai,
       };
     });
+  }
+
+  /**
+ * Danh sách phòng có thể chọn khi tạo hợp đồng "Ở GHÉP"
+ * @param soNguoi số người muốn thêm vào phòng
+ */
+  async findPhongChoOGhep(soNguoi: number) {
+    const rooms = await this.prisma.phong.findMany({
+      where: {
+        isDelete: false,
+        trangThai: { in: [0, 1] },
+      },
+      include: {
+        loaiPhong: true,
+        HopDong: {
+          where: {
+            isDelete: false,
+            trangThai: { in: [0, 1] },
+          },
+          include: {
+            nguoiOGhep: { where: { isDelete: false }, select: { cccd: true } },
+          },
+        },
+      },
+    });
+
+    const homNay = this.ngayHomNayTheoLich();
+
+    const result = await Promise.all(
+      rooms.map(async (phong) => {
+        let soNguoiHienTai = 0;
+        let coHopDongOMotMinh = false;
+
+        for (const hopDong of phong.HopDong) {
+          soNguoiHienTai += 1 + hopDong.nguoiOGhep.length;
+          if (hopDong.hinhThucO === true) {
+            coHopDongOMotMinh = true;
+          }
+        }
+
+        const dsLuanChuyenDen = await this.prisma.phieuLuanChuyen.findMany({
+          where: {
+            phongMoiId: phong.phongId,
+            isDelete: false,
+            tuNgay: { lte: homNay },
+            OR: [{ denNgay: null }, { denNgay: { gt: homNay } }],
+            hopDong: { isDelete: false, trangThai: 1 },
+          },
+          select: {
+            hopDong: {
+              select: {
+                hinhThucO: true,
+                nguoiOGhep: {
+                  where: { isDelete: false },
+                  select: { cccd: true },
+                },
+              },
+            },
+          },
+        });
+
+        for (const phieu of dsLuanChuyenDen) {
+          soNguoiHienTai += 1 + phieu.hopDong.nguoiOGhep.length;
+          if (phieu.hopDong.hinhThucO === true) {
+            coHopDongOMotMinh = true;
+          }
+        }
+
+        const soNguoiToiDa = phong.loaiPhong?.soNguoiToiDa ?? null;
+
+        return {
+          id: phong.phongId,
+          tenPhong: phong.tenPhong,
+          giaPhongGoc: phong.loaiPhong?.giaTien ?? 0,
+          soNguoiHienTai,
+          soNguoiToiDa,
+          soChoConLai:
+            soNguoiToiDa !== null
+              ? Math.max(soNguoiToiDa - soNguoiHienTai, 0)
+              : null,
+          coHopDongOMotMinh,
+        };
+      }),
+    );
+
+    return result
+      .filter(
+        (phong) =>
+          !phong.coHopDongOMotMinh &&
+          phong.soNguoiToiDa !== null &&
+          phong.soNguoiToiDa - phong.soNguoiHienTai >= soNguoi,
+      )
+      .map(({ coHopDongOMotMinh, ...phong }) => phong);
+  }
+
+  /**
+   * Danh sách phòng có thể chọn khi tạo hợp đồng "Ở MỘT MÌNH"
+   * @param soNguoi số người sẽ ở
+   */
+  async findPhongChoOMotMinh(soNguoi: number) {
+    const rooms = await this.prisma.phong.findMany({
+      where: {
+        isDelete: false,
+        trangThai: 0,
+      },
+      include: {
+        loaiPhong: true,
+        HopDong: {
+          where: {
+            isDelete: false,
+            trangThai: { in: [0, 1] },
+          },
+          include: {
+            nguoiOGhep: { where: { isDelete: false }, select: { cccd: true } },
+          },
+        },
+      },
+    });
+
+    const homNay = this.ngayHomNayTheoLich();
+
+    const result = await Promise.all(
+      rooms.map(async (phong) => {
+        let soNguoiHienTai = 0;
+
+        for (const hopDong of phong.HopDong) {
+          soNguoiHienTai += 1 + hopDong.nguoiOGhep.length;
+        }
+
+        const dsLuanChuyenDen = await this.prisma.phieuLuanChuyen.findMany({
+          where: {
+            phongMoiId: phong.phongId,
+            isDelete: false,
+            tuNgay: { lte: homNay },
+            OR: [{ denNgay: null }, { denNgay: { gt: homNay } }],
+            hopDong: { isDelete: false, trangThai: 1 },
+          },
+          select: {
+            hopDong: {
+              select: {
+                nguoiOGhep: {
+                  where: { isDelete: false },
+                  select: { cccd: true },
+                },
+              },
+            },
+          },
+        });
+
+        for (const phieu of dsLuanChuyenDen) {
+          soNguoiHienTai += 1 + phieu.hopDong.nguoiOGhep.length;
+        }
+
+        const soNguoiToiDa = phong.loaiPhong?.soNguoiToiDa ?? null;
+
+        return {
+          id: phong.phongId,
+          tenPhong: phong.tenPhong,
+          giaPhongGoc: phong.loaiPhong?.giaTien ?? 0,
+          soNguoiHienTai,
+          soNguoiToiDa,
+          soChoConLai:
+            soNguoiToiDa !== null
+              ? Math.max(soNguoiToiDa - soNguoiHienTai, 0)
+              : null,
+        };
+      }),
+    );
+
+    return result.filter(
+      (phong) =>
+        phong.soNguoiHienTai === 0 &&
+        phong.soNguoiToiDa !== null &&
+        phong.soNguoiToiDa >= soNguoi,
+    );
   }
 
   async getListNguoiThueByPhongId(phongId: number) {
@@ -266,6 +469,7 @@ export class PhongService {
 
     const lapRapIds = dsLapRap.map((lr) => lr.id);
 
+    // Tra cứu sự cố sửa chữa theo đúng bản ghi lắp ráp (lapRapId), không còn qua phongId nữa
     const dsSuaChua = await this.prisma.suaChua.findMany({
       where: {
         lapRapId: { in: lapRapIds },
@@ -289,6 +493,7 @@ export class PhongService {
       } else if (!hoaDon || hoaDon.trangThai === 0) {
         current.dangSua = true;
       }
+      // trangThai === 1 hoặc 2: không tính
 
       thongKeTheoLapRap.set(sc.lapRapId, current);
     }
@@ -296,11 +501,16 @@ export class PhongService {
     const dsHopLe = dsLapRap.filter((lr) => {
       if (lr.phongId == null) return false;
 
-      
+      // Mỗi LapRap giờ là 1 thiết bị cụ thể — chỉ tính là "còn dùng được"
+      // nếu không đang sửa chữa và không hỏng
       const thongKe = thongKeTheoLapRap.get(lr.id) ?? { dangSua: false, hong: false };
       return !thongKe.dangSua && !thongKe.hong;
     });
 
+    // GROUP BY PhongID: mỗi phòng chỉ trả về 1 lần.
+    // dsLapRap đã orderBy ngayLap 'desc' nên bản ghi gặp đầu tiên cho mỗi
+    // phongId chính là bản ghi lắp ráp gần nhất -> giữ lại bản đó, bỏ qua
+    // các bản ghi cũ hơn cùng phòng.
     const phongMap = new Map<number, any>();
 
     for (const lr of dsHopLe) {
@@ -327,6 +537,7 @@ export class PhongService {
 
     return Array.from(phongMap.values());
   }
+
   async remove(id: number) {
     await this.findOne(id);
     const hopDongConHieuLuc = await this.prisma.hopDong.findFirst({
@@ -459,6 +670,9 @@ export class PhongService {
         const phong = p as any;
         const soNguoiToiDa = phong.loaiPhong?.soNguoiToiDa ?? null;
 
+        // Phòng đang có hợp đồng "Ở MỘT MÌNH" đang hiệu lực -> không cho chuyển vào
+        const dangOMotMinh = phong.HopDong.some((hd: any) => hd.hinhThucO === true);
+
         const soNguoiTuHopDong = phong.HopDong.reduce((sum: number, hd: any) => {
           const soDaiDien = hd.nguoiDaiDien && !hd.nguoiDaiDien.isDelete ? 1 : 0;
           return sum + soDaiDien + hd.nguoiOGhep.length;
@@ -481,20 +695,16 @@ export class PhongService {
 
         return {
           ...phong,
+          dangOMotMinh,
           soNguoiDangO,
           soNguoiChuyenQua,
           soChoConLai,
         };
       })
-      .filter((phong) => phong.soChoConLai !== null && phong.soChoConLai >= 0)
+      .filter((phong) => !phong.dangOMotMinh && phong.soChoConLai !== null && phong.soChoConLai >= 0)
       .sort((a, b) => (b.soChoConLai ?? 0) - (a.soChoConLai ?? 0));
 
     return result;
-  }
-  
-   private ngayHomNayTheoLich(): Date {
-    const now = new Date();
-    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
   }
 
 }

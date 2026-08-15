@@ -75,6 +75,7 @@ model HopDong {
   trangThai         Int?                @default(0)
   ghiChu            String?             @db.Text
   anhHopDong        String?             @db.Text
+  hinhThucO         Boolean             @default(false) // 0: ở ghép, 1: ở một mình
   isDelete          Boolean             @default(false)
   hoaDonPhong       HoaDonPhong[]
   nguoiOGhep        NguoiOGhep[]

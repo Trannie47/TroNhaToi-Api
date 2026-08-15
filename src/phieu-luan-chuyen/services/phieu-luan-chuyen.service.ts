@@ -490,31 +490,37 @@ export class PhieuLuanChuyenService {
     });
 
     const result = await Promise.all(
-      dsPhongKhac.map(async (p) => {
-        const soNguoiDangO = await this.demSoNguoiDangO(
-          this.prisma,
-          p.phongId,
-        );
+      dsPhongKhac
+        // Lọc tường minh lại lần nữa: phòng đang sửa (trangThai === 2) không
+        // được đưa vào danh sách để luân chuyển tới, dù where ở trên đã có
+        // "not: 2" — giữ thêm bước này để chắc chắn không lọt qua nếu dữ liệu
+        // trangThai bị null/chưa đồng bộ kịp từ cron/hook cập nhật trạng thái.
+        .filter((p) => p.trangThai !== 2)
+        .map(async (p) => {
+          const soNguoiDangO = await this.demSoNguoiDangO(
+            this.prisma,
+            p.phongId,
+          );
 
-        const sucChua = p.loaiPhong?.soNguoiToiDa ?? null;
+          const sucChua = p.loaiPhong?.soNguoiToiDa ?? null;
 
-        const soChoTrong =
-          sucChua != null
-            ? Math.max(sucChua - soNguoiDangO, 0)
-            : null;
+          const soChoTrong =
+            sucChua != null
+              ? Math.max(sucChua - soNguoiDangO, 0)
+              : null;
 
-        const daCoHopDong =
-          await this.coHopDongDangHieuLuc(p.phongId);
+          const daCoHopDong =
+            await this.coHopDongDangHieuLuc(p.phongId);
 
-        return {
-          phongId: p.phongId,
-          tenPhong: p.tenPhong,
-          sucChua,
-          soNguoiDangO,
-          soChoTrong,
-          daCoHopDong,
-        };
-      }),
+          return {
+            phongId: p.phongId,
+            tenPhong: p.tenPhong,
+            sucChua,
+            soNguoiDangO,
+            soChoTrong,
+            daCoHopDong,
+          };
+        }),
     );
 
     return result.filter(
@@ -549,88 +555,85 @@ export class PhieuLuanChuyenService {
   }
 
   /**
-  * Lấy danh sách phiếu luân chuyển theo phòng mới (phòng nhận luân chuyển tới),
-  * chỉ lấy phiếu còn hiệu lực (chưa có đến ngày, hoặc đến ngày >= hôm nay),
-  * mỗi phiếu "trải phẳng" theo từng người trong hợp đồng, kèm cờ isNguoiThueChinh.
-  */
+   * Lấy danh sách phiếu luân chuyển theo phòng mới (phòng nhận luân chuyển tới),
+   * chỉ lấy phiếu ĐANG HIỆU LỰC:
+   * - Đã tới ngày bắt đầu: tuNgay <= hôm nay
+   * - Chưa hết hạn: denNgay null hoặc denNgay >= hôm nay
+   * - Hợp đồng gốc vẫn đang hiệu lực: hopDong.trangThai === 1, chưa bị xóa
+   * (đồng bộ với logic đếm soNguoiHienTai trong findAll() của PhongService)
+   * mỗi phiếu "trải phẳng" theo từng người trong hợp đồng, kèm cờ isNguoiThueChinh.
+   */
   async getLuanChuyenPhongMoi(phongId: number) {
-  const homNay = this.ngayHomNayTheoLich();
+    const homNay = this.ngayHomNayTheoLich();
 
-  const phong = await this.prisma.phong.findFirst({
-    where: { phongId, isDelete: false },
-  });
+    const phong = await this.prisma.phong.findFirst({
+      where: { phongId, isDelete: false },
+    });
 
-  if (!phong) {
-    throw new NotFoundException(`Không tìm thấy phòng #${phongId}`);
-  }
+    if (!phong) {
+      throw new NotFoundException(`Không tìm thấy phòng #${phongId}`);
+    }
 
-  const list = await this.prisma.phieuLuanChuyen.findMany({
-    where: {
-      isDelete: false,
-      phongMoiId: phongId,
-      OR: [
-        {
-          denNgay: null,
-        },
-        {
-          denNgay: {
-            gt: homNay,
-          },
-        },
-      ],
-    },
-    include: {
-      phongMoi: true,
-      hopDong: {
-        include: {
-          nguoiDaiDien: true,
-          nguoiOGhep: {
-            where: {
-              isDelete: false,
+    const list = await this.prisma.phieuLuanChuyen.findMany({
+      where: {
+        isDelete: false,
+        phongMoiId: phongId,
+        tuNgay: { lte: homNay },
+        OR: [{ denNgay: null }, { denNgay: { gt: homNay } }],
+        hopDong: { isDelete: false, trangThai: 1 },
+      },
+      include: {
+        phongMoi: true,
+        hopDong: {
+          include: {
+            nguoiDaiDien: true,
+            nguoiOGhep: {
+              where: {
+                isDelete: false,
+              },
             },
           },
         },
       },
-    },
-    orderBy: {
-      chiTietLuanChuyenID: 'desc',
-    },
-  });
+      orderBy: {
+        chiTietLuanChuyenID: 'desc',
+      },
+    });
 
-  const result = list.flatMap((phieu) => {
-    const { hopDong, ...phieuRest } = phieu;
+    const result = list.flatMap((phieu) => {
+      const { hopDong, ...phieuRest } = phieu;
 
-    if (!hopDong) return [];
+      if (!hopDong) return [];
 
-    const { nguoiDaiDien, nguoiOGhep, ...hopDongRest } = hopDong;
+      const { nguoiDaiDien, nguoiOGhep, ...hopDongRest } = hopDong;
 
-    const dsNguoi = [
-      ...(nguoiDaiDien && !nguoiDaiDien.isDelete
-        ? [
+      const dsNguoi = [
+        ...(nguoiDaiDien && !nguoiDaiDien.isDelete
+          ? [
             {
               isNguoiThueChinh: true,
               hoTen: nguoiDaiDien.hoTen,
               sdt: nguoiDaiDien.sdt,
             },
           ]
-        : []),
+          : []),
 
-      ...nguoiOGhep.map((ng) => ({
-        isNguoiThueChinh: false,
-        hoTen: ng.hoTen,
-        sdt: ng.sdt,
-      })),
-    ];
+        ...nguoiOGhep.map((ng) => ({
+          isNguoiThueChinh: false,
+          hoTen: ng.hoTen,
+          sdt: ng.sdt,
+        })),
+      ];
 
-    return dsNguoi.map((nguoi) => ({
-      ...phieuRest,
-      hopDong: hopDongRest,
-      ...nguoi,
-    }));
-  });
+      return dsNguoi.map((nguoi) => ({
+        ...phieuRest,
+        hopDong: hopDongRest,
+        ...nguoi,
+      }));
+    });
 
-  return result;
-}
+    return result;
+  }
 
 
   async update(
