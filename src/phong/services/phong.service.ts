@@ -15,8 +15,7 @@ export class PhongService {
 
   @Cron('0 0,12 * * *')
   async capNhatTrangThaiPhongTheoLuanChuyen() {
-    const homNay = new Date();
-    homNay.setHours(0, 0, 0, 0);
+    const homNay = this.ngayHomNayTheoLich();
 
     const dsPhong = await this.prisma.phong.findMany({
       where: { isDelete: false },
@@ -28,7 +27,7 @@ export class PhongService {
               where: {
                 isDelete: false,
                 tuNgay: { lte: homNay },
-                OR: [{ denNgay: null }, { denNgay: { gte: homNay } }],
+                OR: [{ denNgay: null }, { denNgay: { gt: homNay } }],
               },
             },
           },
@@ -70,8 +69,7 @@ export class PhongService {
   }
 
   async findAll() {
-    const homNay = new Date();
-    homNay.setHours(0, 0, 0, 0);
+    const homNay = this.ngayHomNayTheoLich();
 
     const dsPhong = await this.prisma.phong.findMany({
       where: { isDelete: false },
@@ -93,7 +91,7 @@ export class PhongService {
             tuNgay: { lte: homNay },
             OR: [
               { denNgay: null },
-              { denNgay: { gte: homNay } },
+              { denNgay: { gt: homNay } },
             ],
           },
           include: {
@@ -389,8 +387,7 @@ export class PhongService {
 
 
   async getCoTheLuanChuyenByHopDong(hopDongId: string) {
-    const homNay = new Date();
-    homNay.setHours(0, 0, 0, 0);
+    const homNay = this.ngayHomNayTheoLich();
 
     const hopDongNguon = await this.prisma.hopDong.findFirst({
       where: { hopDongId, isDelete: false },
@@ -438,7 +435,7 @@ export class PhongService {
             },
             OR: [
               { denNgay: null },
-              { denNgay: { gte: homNay } },
+              { denNgay: { gt: homNay } },
             ],
           },
           include: {
@@ -493,6 +490,11 @@ export class PhongService {
       .sort((a, b) => (b.soChoConLai ?? 0) - (a.soChoConLai ?? 0));
 
     return result;
+  }
+  
+   private ngayHomNayTheoLich(): Date {
+    const now = new Date();
+    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
   }
 
 }

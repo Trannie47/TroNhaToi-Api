@@ -30,6 +30,10 @@ export class PhieuLuanChuyenService {
         hopDongId: true,
         phongId: true,
         trangThai: true,
+        nguoiOGhep: {
+          where: { isDelete: false },
+          select: { cccd: true },
+        },
       },
     });
 
@@ -84,7 +88,7 @@ export class PhieuLuanChuyenService {
     }
 
     // =========================================================
-    // 4. Kiểm tra phòng mới tồn tại
+    // 4. Kiểm tra phòng mới tồn tại + còn đủ sức chứa cho cả hợp đồng đang chuyển
     // =========================================================
     if (dto.phongMoiId != null) {
       const phongMoi = await tx.phong.findFirst({
@@ -96,6 +100,7 @@ export class PhieuLuanChuyenService {
           phongId: true,
           tenPhong: true,
           trangThai: true,
+          loaiPhong: { select: { soNguoiToiDa: true } },
         },
       });
 
@@ -103,6 +108,22 @@ export class PhieuLuanChuyenService {
         throw new NotFoundException(
           `Không tìm thấy phòng mới #${dto.phongMoiId}`,
         );
+      }
+
+      const soNguoiToiDa = phongMoi.loaiPhong?.soNguoiToiDa;
+      if (soNguoiToiDa != null) {
+        const soNguoiChuyenQua = 1 + hopDong.nguoiOGhep.length;
+        const soNguoiDangOPhongMoi = await this.demSoNguoiDangO(
+          tx,
+          dto.phongMoiId,
+        );
+
+        if (soNguoiDangOPhongMoi + soNguoiChuyenQua > soNguoiToiDa) {
+          const soChoConLai = Math.max(soNguoiToiDa - soNguoiDangOPhongMoi, 0);
+          throw new ConflictException(
+            `Phòng ${phongMoi.tenPhong} chỉ còn ${soChoConLai} chỗ trống, không đủ chỗ cho ${soNguoiChuyenQua} người của hợp đồng này.`,
+          );
+        }
       }
     }
 
@@ -215,8 +236,7 @@ export class PhieuLuanChuyenService {
       soNguoi += 1 + hopDong.nguoiOGhep.length;
     }
 
-    const homNay = new Date();
-    homNay.setHours(0, 0, 0, 0);
+    const homNay = this.ngayHomNayTheoLich();
 
     const dsLuanChuyenDen =
       await prisma.phieuLuanChuyen.findMany({
@@ -232,7 +252,7 @@ export class PhieuLuanChuyenService {
             },
             {
               denNgay: {
-                gte: homNay,
+                gt: homNay,
               },
             },
           ],
@@ -298,8 +318,7 @@ export class PhieuLuanChuyenService {
     tx: Prisma.TransactionClient,
     phongId: number,
   ): Promise<void> {
-    const homNay = new Date();
-    homNay.setUTCHours(0, 0, 0, 0);
+    const homNay = this.ngayHomNayTheoLich();
 
     // Hợp đồng đang hiệu lực có phongId = phòng này (phòng gốc trên hợp đồng)
     const dsHopDong = await tx.hopDong.findMany({
@@ -328,7 +347,7 @@ export class PhieuLuanChuyenService {
         hopDongId: { in: dsHopDong.map((hd) => hd.hopDongId) },
         isDelete: false,
         tuNgay: { lte: homNay },
-        OR: [{ denNgay: null }, { denNgay: { gte: homNay } }],
+        OR: [{ denNgay: null }, { denNgay: { gt: homNay } }],
       },
       select: { hopDongId: true },
     });
@@ -347,7 +366,7 @@ export class PhieuLuanChuyenService {
         phongMoiId: phongId,
         isDelete: false,
         tuNgay: { lte: homNay },
-        OR: [{ denNgay: null }, { denNgay: { gte: homNay } }],
+        OR: [{ denNgay: null }, { denNgay: { gt: homNay } }],
         hopDong: { isDelete: false, trangThai: 1 },
       },
       select: {
@@ -416,7 +435,7 @@ export class PhieuLuanChuyenService {
           },
           {
             denNgay: {
-              gte: homNay,
+              gt: homNay,
             },
           },
         ],
@@ -535,8 +554,7 @@ export class PhieuLuanChuyenService {
   * mỗi phiếu "trải phẳng" theo từng người trong hợp đồng, kèm cờ isNguoiThueChinh.
   */
   async getLuanChuyenPhongMoi(phongId: number) {
-  const homNay = new Date();
-  homNay.setHours(0, 0, 0, 0);
+  const homNay = this.ngayHomNayTheoLich();
 
   const phong = await this.prisma.phong.findFirst({
     where: { phongId, isDelete: false },
@@ -556,7 +574,7 @@ export class PhieuLuanChuyenService {
         },
         {
           denNgay: {
-            gte: homNay,
+            gt: homNay,
           },
         },
       ],
@@ -747,6 +765,10 @@ export class PhieuLuanChuyenService {
       };
     });
   }
+   private ngayHomNayTheoLich(): Date {
+    const now = new Date();
+    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  }
 
   async remove(id: number) {
     const existing = await this.prisma.phieuLuanChuyen.findFirst({
@@ -771,23 +793,6 @@ export class PhieuLuanChuyenService {
     if (!existing) {
       throw new NotFoundException(
         `Không tìm thấy phiếu luân chuyển #${id}`,
-      );
-    }
-
-    const homNay = new Date();
-    homNay.setHours(0, 0, 0, 0);
-
-    const dangHieuLuc =
-      existing.tuNgay != null &&
-      new Date(existing.tuNgay) <= homNay &&
-      (
-        existing.denNgay == null ||
-        new Date(existing.denNgay) >= homNay
-      );
-
-    if (dangHieuLuc) {
-      throw new ConflictException(
-        'Phiếu luân chuyển đang còn hiệu lực nên không được xóa. Vui lòng cập nhật ngày kết thúc trước.',
       );
     }
 
