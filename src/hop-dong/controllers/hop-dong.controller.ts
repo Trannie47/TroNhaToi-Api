@@ -31,6 +31,13 @@ export class HopDongController {
     if (body.phongId) body.phongId = Number(body.phongId);
     if (body.tienCoc) body.tienCoc = parseFloat(body.tienCoc);
     if (body.giaPhongThucTe) body.giaPhongThucTe = parseFloat(body.giaPhongThucTe);
+    if (body.hinhThucO !== undefined) {
+      body.hinhThucO =
+        body.hinhThucO === 'true' ||
+        body.hinhThucO === '1' ||
+        body.hinhThucO === true ||
+        body.hinhThucO === 1;
+    }
 
     const listUrlImage: string[] = [];
     if (files && files.length > 0) {

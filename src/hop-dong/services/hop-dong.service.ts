@@ -89,7 +89,7 @@ export class HopDongService {
                 },
                 {
                   denNgay: {
-                    gte: homNay,
+                    gt: homNay,
                   },
                 },
               ],
@@ -281,7 +281,7 @@ export class HopDongService {
           },
           {
             denNgay: {
-              gte: homNay,
+              gt: homNay,
             },
           },
         ],
@@ -342,6 +342,7 @@ export class HopDongService {
           trangThai: trangThaiHopDong,
           ghiChu: dto.ghiChu ?? '',
           anhHopDong: chuoiImageConTract,
+          hinhThucO: dto.hinhThucO ?? false,
         },
       });
 
@@ -634,6 +635,7 @@ export class HopDongService {
             trangThai: 1,
             ghiChu: dto.ghiChu ?? existingHopDong.ghiChu,
             anhHopDong,
+            hinhThucO: existingHopDong.hinhThucO,
           },
         });
 
@@ -1163,7 +1165,7 @@ export class HopDongService {
         tuNgay: { lte: homNay },
         OR: [
           { denNgay: null },
-          { denNgay: { gte: homNay } },
+          { denNgay: { gt: homNay } },
         ],
       },
       select: {
