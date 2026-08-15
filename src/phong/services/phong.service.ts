@@ -12,11 +12,28 @@ export class PhongService {
     private thongKeSnapshotService: ThongKeSnapshotService,
   ) { }
 
-
+  /**
+   * Tự động đồng bộ trạng thái phòng, chạy 2 lần/ngày: 00:00 và 12:00.
+   *
+   * Với mỗi phòng, so sánh:
+   * - tongHopDong: số hợp đồng ĐANG HIỆU LỰC (trangThai = 1) của phòng
+   * - soHopDongDaLuanChuyenDi: trong số đó, có bao nhiêu hợp đồng đang có
+   *   1 phiếu luân chuyển ĐANG HIỆU LỰC (tuNgay <= hôm nay <= denNgay/null)
+   *   chuyển sang phòng KHÁC (phongMoiId != phòng hiện tại)
+   *
+   * - Nếu soHopDongDaLuanChuyenDi === tongHopDong (tất cả đã chuyển đi hết)
+   *   -> phòng coi như trống người ở -> trangThai = 2 (đang sửa)
+   * - Ngược lại (còn ít nhất 1 hợp đồng chưa chuyển đi)
+   *   -> trangThai = 1 (đang thuê)
+   *
+   * Phòng KHÔNG có hợp đồng nào đang hiệu lực thì bỏ qua, không tự đổi
+   * trạng thái (tránh ghi đè phòng đang được set thủ công, ví dụ đang sửa
+   * chờ khách mới).
+   */
   @Cron('0 0,12 * * *')
   async capNhatTrangThaiPhongTheoLuanChuyen() {
     const homNay = new Date();
-    homNay.setHours(0, 0, 0, 0);
+    homNay.setUTCHours(0, 0, 0, 0);
 
     const dsPhong = await this.prisma.phong.findMany({
       where: { isDelete: false },
@@ -71,7 +88,7 @@ export class PhongService {
 
   async findAll() {
     const homNay = new Date();
-    homNay.setHours(0, 0, 0, 0);
+    homNay.setUTCHours(0, 0, 0, 0);
 
     const dsPhong = await this.prisma.phong.findMany({
       where: { isDelete: false },
@@ -89,7 +106,12 @@ export class PhongService {
         phieuLuanChuyenDen: {
           where: {
             isDelete: false,
-
+            // CHỈ tính là "đang luân chuyển đến / còn hiệu lực" khi:
+            // - Đã tới ngày bắt đầu luân chuyển (tuNgay <= hôm nay)
+            // - VÀ chưa hết hạn luân chuyển (denNgay null hoặc >= hôm nay)
+            // (đồng bộ với getCoTheLuanChuyenByHopDong bên dưới, trước đây
+            // chỗ này thiếu điều kiện tuNgay nên phiếu chưa tới ngày bắt đầu
+            // vẫn bị tính nhầm vào soNguoiHienTai)
             tuNgay: { lte: homNay },
             OR: [
               { denNgay: null },
@@ -268,6 +290,7 @@ export class PhongService {
 
     const lapRapIds = dsLapRap.map((lr) => lr.id);
 
+    // Tra cứu sự cố sửa chữa theo đúng bản ghi lắp ráp (lapRapId), không còn qua phongId nữa
     const dsSuaChua = await this.prisma.suaChua.findMany({
       where: {
         lapRapId: { in: lapRapIds },
@@ -291,6 +314,7 @@ export class PhongService {
       } else if (!hoaDon || hoaDon.trangThai === 0) {
         current.dangSua = true;
       }
+      // trangThai === 1 hoặc 2: không tính
 
       thongKeTheoLapRap.set(sc.lapRapId, current);
     }
@@ -298,11 +322,16 @@ export class PhongService {
     const dsHopLe = dsLapRap.filter((lr) => {
       if (lr.phongId == null) return false;
 
-      
+      // Mỗi LapRap giờ là 1 thiết bị cụ thể — chỉ tính là "còn dùng được"
+      // nếu không đang sửa chữa và không hỏng
       const thongKe = thongKeTheoLapRap.get(lr.id) ?? { dangSua: false, hong: false };
       return !thongKe.dangSua && !thongKe.hong;
     });
 
+    // GROUP BY PhongID: mỗi phòng chỉ trả về 1 lần.
+    // dsLapRap đã orderBy ngayLap 'desc' nên bản ghi gặp đầu tiên cho mỗi
+    // phongId chính là bản ghi lắp ráp gần nhất -> giữ lại bản đó, bỏ qua
+    // các bản ghi cũ hơn cùng phòng.
     const phongMap = new Map<number, any>();
 
     for (const lr of dsHopLe) {
@@ -329,6 +358,7 @@ export class PhongService {
 
     return Array.from(phongMap.values());
   }
+
   async remove(id: number) {
     await this.findOne(id);
     const hopDongConHieuLuc = await this.prisma.hopDong.findFirst({
@@ -387,10 +417,10 @@ export class PhongService {
     return result;
   }
 
-
+  
   async getCoTheLuanChuyenByHopDong(hopDongId: string) {
     const homNay = new Date();
-    homNay.setHours(0, 0, 0, 0);
+    homNay.setUTCHours(0, 0, 0, 0);
 
     const hopDongNguon = await this.prisma.hopDong.findFirst({
       where: { hopDongId, isDelete: false },
