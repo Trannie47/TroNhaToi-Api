@@ -77,6 +77,7 @@ model HopDong {
   anhHopDong        String?             @db.Text
   hinhThucO         Boolean             @default(false) // 0: ở ghép, 1: ở một mình
   isDelete          Boolean             @default(false)
+  createdAt         DateTime            @default(now())
   hoaDonPhong       HoaDonPhong[]
   nguoiOGhep        NguoiOGhep[]
   phong             Phong?              @relation(fields: [phongId], references: [phongId], onDelete: Restrict, onUpdate: Restrict, map: "HopDong_Fk2")

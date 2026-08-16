@@ -127,7 +127,7 @@ describe('HopDongService', () => {
         expect(mockPrisma.hopDong.findMany).toHaveBeenCalledWith(
             expect.objectContaining({
                 where: { isDelete: false },
-                orderBy: { ngayKy: 'desc' },
+                orderBy: { createdAt: 'desc' },
             }),
         );
     });

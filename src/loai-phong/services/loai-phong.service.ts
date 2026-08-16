@@ -13,6 +13,7 @@ export class LoaiPhongService {
      include: {
        phong: { where: { isDelete: false }, select: { phongId: true, tenPhong: true, trangThai: true } },
      },
+     orderBy: { maLoaiPhong: 'desc' },
     });
   }
   async create(dto: CreateLoaiPhongDto) {

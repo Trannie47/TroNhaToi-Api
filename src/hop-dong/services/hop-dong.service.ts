@@ -35,7 +35,7 @@ export class HopDongService {
         nguoiOGhep: { where: { isDelete: false } },
       },
       orderBy: {
-        ngayKy: 'desc',
+        createdAt: 'desc',
       },
     });
     return dsHopDong.map((hd) => ({
