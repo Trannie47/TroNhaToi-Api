@@ -51,6 +51,7 @@ export class ThongKeService {
     return [
       snapshot.topPhong,
       snapshot.topCongNo,
+      snapshot.topCongNoTapHoa,
       snapshot.topHangHoa,
       snapshot.topThietBiSua,
     ].every(Array.isArray);
@@ -1199,6 +1200,81 @@ export class ThongKeService {
     return hopDongSapHet;
   }
 
+
+  /**
+ * ==========================================
+ * TOP CÔNG NỢ TẠP HÓA (theo người thuê)
+ * ==========================================
+ */
+  private async getTopCongNoTapHoa(dto: ThongKeQueryDto) {
+    const { from, to } = this.getDateRange(dto);
+
+    const groceryInvoices = await this.prisma.hoaDonTapHoa.findMany({
+      where: {
+        isDelete: false,
+        ngayBan: { gte: from, lte: to },
+      },
+      select: {
+        tongTien: true,
+        nguoiThue: {
+          select: {
+            idnt: true,
+            hoTen: true,
+          },
+        },
+        phieuThuHdTh: {
+          where: {
+            isDelete: false,
+            ngayThu: { gte: from, lte: to },
+          },
+          select: { soTien: true },
+        },
+      },
+    });
+
+    const tenants = new Map<
+      number,
+      {
+        idnt: number;
+        hoTen: string | null;
+        tongTien: number;
+        tongDaThu: number;
+        tongCongNo: number;
+      }
+    >();
+
+    for (const invoice of groceryInvoices) {
+      const tenant = invoice.nguoiThue;
+      if (!tenant) continue;
+
+      const collected = (invoice.phieuThuHdTh || []).reduce(
+        (sum, phieu) => sum + this.toNumber(phieu.soTien),
+        0,
+      );
+
+      const current = tenants.get(tenant.idnt) ?? {
+        idnt: tenant.idnt,
+        hoTen: tenant.hoTen,
+        tongTien: 0,
+        tongDaThu: 0,
+        tongCongNo: 0,
+      };
+
+      current.tongTien += this.toNumber(invoice.tongTien);
+      current.tongDaThu += collected;
+      tenants.set(tenant.idnt, current);
+    }
+
+    return [...tenants.values()]
+      .map((tenant) => ({
+        ...tenant,
+        tongCongNo: Math.max(tenant.tongTien - tenant.tongDaThu, 0),
+      }))
+      .filter((tenant) => tenant.tongCongNo > 0)
+      .sort((a, b) => b.tongCongNo - a.tongCongNo)
+      .slice(0, 5);
+  }
+
   /**
    * ==========================================
    * API TÍNH THỐNG KÊ
@@ -1218,6 +1294,7 @@ export class ThongKeService {
       topPhong,
       topCongNo,
       topCongNoHoaDonPhong,
+      topCongNoTapHoa,
       topCongNoDienNuoc,
       topCongNoPhuongTien,
       topHangHoa,
@@ -1246,6 +1323,8 @@ export class ThongKeService {
 
       this.getTopCongNoHoaDonPhong(dto),
 
+      this.getTopCongNoTapHoa(dto),
+
       this.getTopCongNoDienNuoc(dto),
 
       this.getTopCongNoPhuongTien(dto),
@@ -1269,6 +1348,7 @@ export class ThongKeService {
       topPhong,
       topCongNo,
       topCongNoHoaDonPhong,
+      topCongNoTapHoa,
       topCongNoDienNuoc,
       topCongNoPhuongTien,
       topHangHoa,
