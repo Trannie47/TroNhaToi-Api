@@ -11,6 +11,7 @@ const mockHoaDonDienNuoc = {
   timTheoLanChot: jest.fn(),
   layDanhSachChuaThanhToan: jest.fn(),
   layDanhSachTheoThangDeHienThi: jest.fn(),
+  layTatCaDanhSachDeHienThi: jest.fn(),
   chotHoaDon: jest.fn(),
 };
 
@@ -308,12 +309,14 @@ describe('HoaDonPhongService', () => {
       expect(result[0].phieuThuHangThang).toHaveLength(2);
     });
 
-    it('không gọi điện nước khi không truyền thangNam', async () => {
+    it('lấy điện nước của MỌI kỳ khi không truyền thangNam (không bỏ sót kỳ trước)', async () => {
       mockPrisma.hoaDonPhong.findMany.mockResolvedValue([]);
+      mockHoaDonDienNuoc.layTatCaDanhSachDeHienThi.mockResolvedValue([]);
 
       const result = await service.getDanhSachByPhong(PHONG_ID);
 
       expect(result).toEqual([]);
+      expect(mockHoaDonDienNuoc.layTatCaDanhSachDeHienThi).toHaveBeenCalledWith(PHONG_ID);
       expect(mockHoaDonDienNuoc.layDanhSachTheoThangDeHienThi).not.toHaveBeenCalled();
     });
   });

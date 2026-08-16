@@ -679,8 +679,10 @@ export class HoaDonPhongService {
       };
     });
 
-    if (thangNam) {
-      const danhSachHoaDonDienNuocDaChot = await this.hoaDonDienNuoc.layDanhSachTheoThangDeHienThi(phongId, thangNam);
+    {
+      const danhSachHoaDonDienNuocDaChot = thangNam
+        ? await this.hoaDonDienNuoc.layDanhSachTheoThangDeHienThi(phongId, thangNam)
+        : await this.hoaDonDienNuoc.layTatCaDanhSachDeHienThi(phongId);
 
       for (const hd of danhSachHoaDonDienNuocDaChot) {
         const dn = hd.dienNuoc;
@@ -696,7 +698,8 @@ export class HoaDonPhongService {
         const daThuDN = Number(hd.phieuThuDienNuoc?.soTien ?? 0);
         const isPaid = daThuDN >= tongTienDN && tongTienDN > 0;
 
-        const cleanThangNam = thangNam.replace('/', '');
+        const thangNamCuaHd = hd.thangNam;
+        const cleanThangNam = thangNamCuaHd.replace('/', '');
         const maHDDN = `HD-DN-${phongId}-${cleanThangNam}-L${hd.lanGhi}`;
 
         const snapshotDienNuoc = {
@@ -706,7 +709,7 @@ export class HoaDonPhongService {
           phongId: phongId,
           lanGhi: hd.lanGhi,
           tenPhong: dn.phong?.tenPhong ?? `Phòng ${phongId}`,
-          thangNam: thangNam,
+          thangNam: thangNamCuaHd,
           ngayLap: hd.ngayLap,
           tongThanhToan: tongTienDN,
           chiTietDienNuoc: {
@@ -725,7 +728,7 @@ export class HoaDonPhongService {
               thanhTien: Number(hd.tienNuoc),
             },
           },
-          ghiChu: `Chốt chỉ số điện nước tháng ${thangNam} (Lần ${hd.lanGhi})`,
+          ghiChu: `Chốt chỉ số điện nước tháng ${thangNamCuaHd} (Lần ${hd.lanGhi})`,
         };
 
         resultList.push({
@@ -733,7 +736,7 @@ export class HoaDonPhongService {
           hopDongId: '',
           hoTenKhach: `Cả phòng ${phongId} (Lần ${hd.lanGhi})`,
           tenPhong: dn.phong?.tenPhong ?? `Phòng ${phongId}`,
-          thangNam: thangNam,
+          thangNam: thangNamCuaHd,
           ngayLap: hd.ngayLap,
           soTien: tongTienDN,
           tongDaThu: daThuDN,

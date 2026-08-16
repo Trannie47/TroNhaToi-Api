@@ -31,6 +31,18 @@ export class HoaDonDienNuocService {
     });
   }
 
+  // Danh sách đầy đủ hóa đơn điện nước còn hiệu lực của TẤT CẢ các kỳ (không lọc thangNam)
+  async layTatCaDanhSachDeHienThi(phongId: number) {
+    return this.prisma.hoaDonDienNuoc.findMany({
+      where: { phongId, isDelete: false },
+      include: {
+        dienNuoc: { include: { phong: true } },
+        phieuThuDienNuoc: { where: { isDelete: false } },
+      },
+      orderBy: [{ thangNam: 'desc' }, { lanGhi: 'desc' }],
+    });
+  }
+
   // Tìm đúng 1 hóa đơn theo lần chốt. Mặc định chỉ lấy hóa đơn còn hiệu lực (isDelete: false);
   // truyền kemDaXoa: true khi cần lấy lại giá đã chốt của 1 lần chốt đang được sửa lại (hóa đơn
   // đó đã bị xóa mềm để rollback, nhưng giá cũ vẫn cần dùng làm gợi ý).
