@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateThietBiDto } from '../dto/create-thiet-bi.dto';
 import { UpdateThietBiDto } from '../dto/update-thiet-bi.dto';
@@ -89,15 +89,45 @@ export class ThietBiService {
 
   async remove(id: number) {
     await this.findOne(id);
+
+    // Kiểm tra thiết bị có đang được lắp ở phòng nào không
+    const dangLapRap = await this.prisma.lapRap.findFirst({
+      where: {
+        thietBiId: id,
+        phongId: {
+          not: null,
+        },
+        isDelete: false,
+      },
+      include: {
+        phong: {
+          select: {
+            tenPhong: true,
+          },
+        },
+      },
+    });
+    console.log('THIET BI DANG XOA:', id);
+    console.log('LAP RAP TIM DUOC:', dangLapRap);
+
+    if (dangLapRap) {
+      throw new BadRequestException(
+        `Không thể xóa thiết bị vì thiết bị đang được lắp tại phòng ${dangLapRap.phong?.tenPhong ?? ''}`,
+      );
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const removed = await tx.thietBi.update({
         where: { thietBiId: id },
         data: { isDelete: true },
       });
+
       await this.thongKeSnapshotService.invalidateAll(tx);
+
       return removed;
     });
   }
+
   async search(req: SearchThietBiDto) {
     const { q, trangThai, limit = 10, offset = 0, sortBy = 'thietBiId', sort = 'desc' } = req;
     const where: any = { isDelete: false };
@@ -160,7 +190,6 @@ export class ThietBiService {
       where: {
         phongId,
         isDelete: false,
-        thietbi: { isDelete: false },
       },
       include: { thietbi: true },
       orderBy: { id: 'desc' },
