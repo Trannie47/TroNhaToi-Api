@@ -133,11 +133,22 @@ export class HopDongController {
     return this.hopDongService.cancelContract(id);
   }
   @Post(':hopDongId/terminate')
-  @ApiOperation({ summary: 'Kết thúc hợp đồng đang hoạt động (trạng thái 1), check công nợ và chốt ngày trả phòng' })
-  terminateContract(@Param('hopDongId') id: string) {
-    return this.hopDongService.terminateContract(id);
-  }
+  @ApiOperation({
+    summary:
+      'Kết thúc hợp đồng đang hoạt động (trạng thái 1), check công nợ và chốt ngày trả phòng',
+  })
+  terminateContract(
+    @Param('hopDongId') id: string,
+    @Query('ketThucLuanChuyen') ketThucLuanChuyen?: string,
+  ) {
+    const xacNhanKetThucLuanChuyen =
+      ketThucLuanChuyen === 'true';
 
+    return this.hopDongService.terminateContract(
+      id,
+      xacNhanKetThucLuanChuyen,
+    );
+  }
   @Get('phong/:phongId')
   @ApiOperation({ summary: 'Danh sách hợp đồng theo phòng (kèm người thuê đại diện + người ở ghép)' })
   getHopDongByPhong(@Param('phongId', ParseIntPipe) phongId: number) {

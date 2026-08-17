@@ -41,7 +41,7 @@ export class PhongService {
     const homNay = this.ngayHomNayTheoLich();
 
     const dsPhong = await this.prisma.phong.findMany({
-      where: { isDelete: false },
+      where: { isDelete: false }, 
       include: {
         HopDong: {
           where: { isDelete: false, trangThai: 1 },
@@ -599,14 +599,22 @@ export class PhongService {
 
   async getCoTheLuanChuyenByHopDong(hopDongId: string) {
     const homNay = this.ngayHomNayTheoLich();
-
     const hopDongNguon = await this.prisma.hopDong.findFirst({
-      where: { hopDongId, isDelete: false },
+      where: {
+        hopDongId,
+        isDelete: false,
+        trangThai: 1,
+      },
       include: {
         nguoiDaiDien: true,
-        nguoiOGhep: { where: { isDelete: false } },
+        nguoiOGhep: {
+          where: {
+            isDelete: false,
+          },
+        },
       },
     });
+
 
     if (!hopDongNguon) {
       throw new NotFoundException(`Không tìm thấy hợp đồng #${hopDongId}`);
