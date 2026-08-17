@@ -670,21 +670,38 @@ export class PhongService {
         const phong = p as any;
         const soNguoiToiDa = phong.loaiPhong?.soNguoiToiDa ?? null;
 
-        // Phòng đang có hợp đồng "Ở MỘT MÌNH" đang hiệu lực -> không cho chuyển vào
-        const dangOMotMinh = phong.HopDong.some((hd: any) => hd.hinhThucO === true);
+        // Phòng đang có hợp đồng "Ở MỘT MÌNH" đang hiệu lực
+        // -> không cho chuyển vào
+        const dangOMotMinhTrucTiep = phong.HopDong.some(
+          (hd: any) => hd.hinhThucO === true,
+        );
 
         const soNguoiTuHopDong = phong.HopDong.reduce((sum: number, hd: any) => {
-          const soDaiDien = hd.nguoiDaiDien && !hd.nguoiDaiDien.isDelete ? 1 : 0;
+          const soDaiDien =
+            hd.nguoiDaiDien && !hd.nguoiDaiDien.isDelete ? 1 : 0;
+
           return sum + soDaiDien + hd.nguoiOGhep.length;
         }, 0);
 
         // Cộng thêm người đã/đang chuyển tới phòng này qua phiếu luân chuyển còn hiệu lực
-        const soNguoiTuLuanChuyen = phong.phieuLuanChuyenDen.reduce((sum: number, lc: any) => {
-          const hd = lc.hopDong;
-          if (!hd) return sum;
-          const soDaiDien = hd.nguoiDaiDien && !hd.nguoiDaiDien.isDelete ? 1 : 0;
-          return sum + soDaiDien + hd.nguoiOGhep.length;
-        }, 0);
+        const dangOMotMinhTuLuanChuyen = phong.phieuLuanChuyenDen.some(
+          (lc: any) => lc.hopDong?.hinhThucO === true,
+        );
+
+        const soNguoiTuLuanChuyen =
+          phong.phieuLuanChuyenDen.reduce((sum: number, lc: any) => {
+            const hd = lc.hopDong;
+
+            if (!hd) return sum;
+
+            const soDaiDien =
+              hd.nguoiDaiDien && !hd.nguoiDaiDien.isDelete ? 1 : 0;
+
+            return sum + soDaiDien + hd.nguoiOGhep.length;
+          }, 0);
+
+        const dangOMotMinh =
+          dangOMotMinhTrucTiep || dangOMotMinhTuLuanChuyen;
 
         const soNguoiDangO = soNguoiTuHopDong + soNguoiTuLuanChuyen;
 
