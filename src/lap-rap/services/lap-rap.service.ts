@@ -118,17 +118,59 @@ export class LapRapService {
     });
   }
 
-  async remove(id: number) {
-    await this.findOne(id);
-    return this.prisma.$transaction(async (tx) => {
-      const removed = await tx.lapRap.update({
-        where: { id: id },
-        data: { isDelete: true },
-      });
-      await this.thongKeSnapshotService.invalidateAll(tx);
-      return removed;
-    });
+ async remove(id: number) {
+  const lapRap = await this.prisma.lapRap.findFirst({
+    where: {
+      id,
+      isDelete: false,
+    },
+    include: {
+      suachua: {
+        where: {
+          isDelete: false,
+        },
+        include: {
+          hoadonsuachua: true,
+        },
+      },
+    },
+  });
+
+  if (!lapRap) {
+    throw new NotFoundException(
+      `LapRap với id ${id} không tồn tại`,
+    );
   }
+
+  // Kiểm tra còn lịch sử sửa chữa chưa hoàn thành
+  const dangSua = lapRap.suachua.some((sc) => {
+    const hoaDon =
+      sc.hoadonsuachua && !sc.hoadonsuachua.isDelete
+        ? sc.hoadonsuachua
+        : null;
+
+    return !hoaDon || hoaDon.trangThai === 0;
+  });
+
+  if (dangSua) {
+    throw new BadRequestException(
+      'Thiết bị đang có lịch sử sửa chữa chưa hoàn thành. Vui lòng hoàn thành sửa chữa trước khi xóa.',
+    );
+  }
+
+  return this.prisma.$transaction(async (tx) => {
+    const removed = await tx.lapRap.update({
+      where: { id },
+      data: {
+        isDelete: true,
+      },
+    });
+
+    await this.thongKeSnapshotService.invalidateAll(tx);
+
+    return removed;
+  });
+}
 
   async search(req: SearchLapRapDto) {
     const { phongId, thietBiId, limit = 10, offset = 0, sortBy = 'id', sort = 'desc' } = req;
