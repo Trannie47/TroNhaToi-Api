@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -24,5 +24,14 @@ export class ThongKeController {
     @Query() dto: ThongKeQueryDto,
   ) {
     return this.thongKeService.getThongKe(dto);
+  }
+
+  @Get('nguoi-hay-no')
+  @ApiOperation({ summary: 'Danh sách người thuê hay bị nợ tiền phòng nhất (tính trên mọi kỳ), kèm phòng hiện tại' })
+  @ApiQuery({ name: 'top', required: false, description: 'Số lượng người trả về, mặc định 10' })
+  getNguoiHayNo(
+    @Query('top', new ParseIntPipe({ optional: true })) top?: number,
+  ) {
+    return this.thongKeService.getNguoiHayNo(top ?? 10);
   }
 }
