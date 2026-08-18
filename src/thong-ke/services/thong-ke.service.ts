@@ -1361,6 +1361,97 @@ export class ThongKeService {
     return this.getThongKeWithRetry(dto, 0);
   }
 
+  /**
+   * Danh sách người thuê hay bị nợ tiền phòng nhất — tính trên MỌI kỳ (không giới hạn
+   * theo tháng/năm cụ thể), khác với các hàm "topCongNo..." ở trên vốn chỉ tính trong 1 kỳ.
+   * "Hay bị nợ" = số lần (số hóa đơn khác nhau, qua nhiều tháng) người đó còn nợ tính tới
+   * hiện tại — không phải chỉ đang nợ nhiều tiền ở 1 kỳ duy nhất.
+   */
+  async getNguoiHayNo(top: number = 10) {
+    const invoices = await this.prisma.hoaDonPhong.findMany({
+      where: { isDelete: false },
+      select: {
+        soTien: true,
+        thangNam: true,
+        hopDong: {
+          select: {
+            ngayKy: true,
+            nguoiDaiDien: {
+              select: { idnt: true, hoTen: true, sdt: true },
+            },
+            phong: {
+              select: { phongId: true, tenPhong: true },
+            },
+          },
+        },
+        phieuThuHangThang: {
+          where: { isDelete: false },
+          select: { soTien: true },
+        },
+      },
+    });
+
+    type NguoiHayNo = {
+      idnt: number;
+      hoTen: string | null;
+      sdt: string | null;
+      soLanNo: number;
+      tongConNo: number;
+      danhSachThangNoDong: string[];
+      phong: { phongId: number; tenPhong: string | null } | null;
+    };
+
+    const map = new Map<number, NguoiHayNo & { ngayKyGanNhat: Date | null }>();
+
+    for (const hd of invoices) {
+      const nguoiDaiDien = hd.hopDong?.nguoiDaiDien;
+      if (!nguoiDaiDien) continue;
+
+      const daThu = (hd.phieuThuHangThang || []).reduce(
+        (sum, pt) => sum + this.toNumber(pt.soTien),
+        0,
+      );
+      const conNo = Math.max(this.toNumber(hd.soTien) - daThu, 0);
+
+      // Chỉ tính những hóa đơn thực sự còn nợ tới thời điểm hiện tại
+      if (conNo <= 0) continue;
+
+      const current = map.get(nguoiDaiDien.idnt) ?? {
+        idnt: nguoiDaiDien.idnt,
+        hoTen: nguoiDaiDien.hoTen,
+        sdt: nguoiDaiDien.sdt,
+        soLanNo: 0,
+        tongConNo: 0,
+        danhSachThangNoDong: [],
+        phong: null,
+        ngayKyGanNhat: null,
+      };
+
+      current.soLanNo += 1;
+      current.tongConNo += conNo;
+      if (hd.thangNam) current.danhSachThangNoDong.push(hd.thangNam);
+
+      // Lấy phòng theo hợp đồng có ngày ký gần nhất trong số các hóa đơn còn nợ,
+      // xem như đại diện cho phòng hiện tại/gần nhất của người này.
+      const ngayKy = hd.hopDong?.ngayKy ?? null;
+      if (!current.ngayKyGanNhat || (ngayKy && ngayKy > current.ngayKyGanNhat)) {
+        current.ngayKyGanNhat = ngayKy;
+        current.phong = hd.hopDong?.phong
+          ? { phongId: hd.hopDong.phong.phongId, tenPhong: hd.hopDong.phong.tenPhong }
+          : null;
+      }
+
+      map.set(nguoiDaiDien.idnt, current);
+    }
+
+    return [...map.values()]
+      .sort(
+        (a, b) => b.soLanNo - a.soLanNo || b.tongConNo - a.tongConNo,
+      )
+      .slice(0, top)
+      .map(({ ngayKyGanNhat, ...rest }) => rest);
+  }
+
   private async getThongKeWithRetry(
     dto: ThongKeQueryDto,
     retryCount: number,
