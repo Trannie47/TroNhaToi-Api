@@ -707,21 +707,21 @@ export class ThongKeService {
   }
 
   /**
-   * ==========================================
-   * TOP CÔNG NỢ (gộp tiền phòng + tạp hóa)
-   * ==========================================
-   */
+ * ==========================================
+ * TOP CÔNG NỢ
+ * (gộp tiền phòng + tạp hóa)
+ *
+ * LẤY TẤT CẢ CÁC THÁNG/NĂM
+ * ==========================================
+ */
   private async getTopCongNo(dto: ThongKeQueryDto) {
-    const thangNam = this.getThangNam(dto);
-    const { from, to } = this.getDateRange(dto);
-
     const [roomInvoices, groceryInvoices] = await Promise.all([
+      // =========================
+      // TIỀN PHÒNG - TẤT CẢ
+      // =========================
       this.prisma.hoaDonPhong.findMany({
         where: {
           isDelete: false,
-          ...(thangNam
-            ? { thangNam }
-            : { thangNam: { endsWith: `${dto.nam}` } }),
         },
         select: {
           maHoaDon: true,
@@ -739,15 +739,22 @@ export class ThongKeService {
             },
           },
           phieuThuHangThang: {
-            where: { isDelete: false },
-            select: { soTien: true },
+            where: {
+              isDelete: false,
+            },
+            select: {
+              soTien: true,
+            },
           },
         },
       }),
+
+      // =========================
+      // TẠP HÓA - TẤT CẢ
+      // =========================
       this.prisma.hoaDonTapHoa.findMany({
         where: {
           isDelete: false,
-          ngayBan: { gte: from, lte: to },
         },
         select: {
           tongTien: true,
@@ -760,9 +767,10 @@ export class ThongKeService {
           phieuThuHdTh: {
             where: {
               isDelete: false,
-              ngayThu: { gte: from, lte: to },
             },
-            select: { soTien: true },
+            select: {
+              soTien: true,
+            },
           },
         },
       }),
@@ -780,7 +788,10 @@ export class ThongKeService {
     >();
 
     const addDebt = (
-      tenant: { idnt: number; hoTen: string | null } | null | undefined,
+      tenant: {
+        idnt: number;
+        hoTen: string | null;
+      } | null | undefined,
       amount: number,
       collected: number,
     ) => {
@@ -796,9 +807,13 @@ export class ThongKeService {
 
       current.tongTien += amount;
       current.tongDaThu += collected;
+
       tenants.set(tenant.idnt, current);
     };
 
+    // =========================
+    // CÔNG NỢ TIỀN PHÒNG
+    // =========================
     for (const invoice of roomInvoices) {
       const collected = (invoice.phieuThuHangThang || []).reduce(
         (sum, phieu) => sum + this.toNumber(phieu.soTien),
@@ -812,21 +827,29 @@ export class ThongKeService {
       );
     }
 
+    // =========================
+    // CÔNG NỢ TẠP HÓA
+    // =========================
     for (const invoice of groceryInvoices) {
+      const collected = invoice.phieuThuHdTh.reduce(
+        (sum, receipt) => sum + this.toNumber(receipt.soTien),
+        0,
+      );
+
       addDebt(
         invoice.nguoiThue,
         this.toNumber(invoice.tongTien),
-        invoice.phieuThuHdTh.reduce(
-          (sum, receipt) => sum + this.toNumber(receipt.soTien),
-          0,
-        ),
+        collected,
       );
     }
 
     return [...tenants.values()]
       .map((tenant) => ({
         ...tenant,
-        tongCongNo: Math.max(tenant.tongTien - tenant.tongDaThu, 0),
+        tongCongNo: Math.max(
+          tenant.tongTien - tenant.tongDaThu,
+          0,
+        ),
       }))
       .filter((tenant) => tenant.tongCongNo > 0)
       .sort((a, b) => b.tongCongNo - a.tongCongNo)
@@ -834,10 +857,11 @@ export class ThongKeService {
   }
 
   /**
-   * ==========================================
-   * TOP CÔNG NỢ HÓA ĐƠN PHÒNG (theo người thuê đại diện của hợp đồng)
-   * ==========================================
-   */
+ * ==========================================
+ * TOP CÔNG NỢ HÓA ĐƠN PHÒNG
+ * (theo người thuê đại diện của hợp đồng)
+ * ==========================================
+ */
   private async getTopCongNoHoaDonPhong(dto: ThongKeQueryDto) {
     const thangNam = this.getThangNam(dto);
 
@@ -861,25 +885,30 @@ export class ThongKeService {
           },
         },
         phieuThuHangThang: {
-          where: { isDelete: false },
-          select: { soTien: true },
+          where: {
+            isDelete: false,
+          },
+          select: {
+            soTien: true,
+          },
         },
       },
     });
 
-    const tenants = new Map
-      <number,
-        {
-          idnt: number;
-          hoTen: string | null;
-          tongTien: number;
-          tongDaThu: number;
-          tongCongNo: number;
-        }
-      >();
+    const tenants = new Map<
+      number,
+      {
+        idnt: number;
+        hoTen: string | null;
+        tongTien: number;
+        tongDaThu: number;
+        tongCongNo: number;
+      }
+    >();
 
     for (const invoice of roomInvoices) {
       const tenant = invoice.hopDong?.nguoiDaiDien;
+
       if (!tenant) continue;
 
       const collected = (invoice.phieuThuHangThang || []).reduce(
@@ -897,13 +926,17 @@ export class ThongKeService {
 
       current.tongTien += this.toNumber(invoice.soTien);
       current.tongDaThu += collected;
+
       tenants.set(tenant.idnt, current);
     }
 
     return [...tenants.values()]
       .map((tenant) => ({
         ...tenant,
-        tongCongNo: Math.max(tenant.tongTien - tenant.tongDaThu, 0),
+        tongCongNo: Math.max(
+          tenant.tongTien - tenant.tongDaThu,
+          0,
+        ),
       }))
       .filter((tenant) => tenant.tongCongNo > 0)
       .sort((a, b) => b.tongCongNo - a.tongCongNo)
@@ -982,10 +1015,11 @@ export class ThongKeService {
   }
 
   /**
-   * ==========================================
-   * TOP CÔNG NỢ PHƯƠNG TIỆN (theo người thuê)
-   * ==========================================
-   */
+ * ==========================================
+ * TOP CÔNG NỢ PHƯƠNG TIỆN
+ * (theo người thuê)
+ * ==========================================
+ */
   private async getTopCongNoPhuongTien(dto: ThongKeQueryDto) {
     const thangNam = this.getThangNam(dto);
 
@@ -1002,7 +1036,10 @@ export class ThongKeService {
         phuongtien: {
           select: {
             nguoithue: {
-              select: { idnt: true, hoTen: true },
+              select: {
+                idnt: true,
+                hoTen: true,
+              },
             },
           },
         },
@@ -1022,10 +1059,15 @@ export class ThongKeService {
 
     for (const hd of dsHoaDon) {
       const tenant = hd.phuongtien?.nguoithue;
+
       if (!tenant) continue;
 
       const amount = this.toNumber(hd.soTien);
-      const daThu = hd.TrangThai === 1 ? amount : 0;
+
+      const daThu =
+        hd.TrangThai === 1
+          ? amount
+          : 0;
 
       const current = tenants.get(tenant.idnt) ?? {
         idnt: tenant.idnt,
@@ -1037,13 +1079,17 @@ export class ThongKeService {
 
       current.tongTien += amount;
       current.tongDaThu += daThu;
+
       tenants.set(tenant.idnt, current);
     }
 
     return [...tenants.values()]
       .map((tenant) => ({
         ...tenant,
-        tongCongNo: Math.max(tenant.tongTien - tenant.tongDaThu, 0),
+        tongCongNo: Math.max(
+          tenant.tongTien - tenant.tongDaThu,
+          0,
+        ),
       }))
       .filter((tenant) => tenant.tongCongNo > 0)
       .sort((a, b) => b.tongCongNo - a.tongCongNo)
@@ -1374,14 +1420,53 @@ export class ThongKeService {
       },
     });
 
+    // ==========================================================
+    // CÓ SNAPSHOT HỢP LỆ
+    // ==========================================================
     if (
       snapshot &&
       currentRevision !== null &&
       snapshot.phienBan === currentRevision &&
       this.isCurrentSnapshot(snapshot.duLieu)
     ) {
-      return this.refreshTimeDependentData(snapshot.duLieu);
+      // Dữ liệu thống kê theo tháng/năm lấy từ snapshot
+      const data = await this.refreshTimeDependentData(
+        snapshot.duLieu,
+      );
+
+      // ========================================================
+      // TOP CÔNG NỢ LUÔN TÍNH LẠI TOÀN BỘ LỊCH SỬ
+      // Không lấy topCongNo đã lưu trong snapshot
+      // ========================================================
+      const [
+        topCongNo,
+        topCongNoHoaDonPhong,
+        topCongNoTapHoa,
+        topCongNoDienNuoc,
+        topCongNoPhuongTien,
+      ] = await Promise.all([
+        this.getTopCongNo(dto),
+        this.getTopCongNoHoaDonPhong(dto),
+        this.getTopCongNoTapHoa(dto),
+        this.getTopCongNoDienNuoc(dto),
+        this.getTopCongNoPhuongTien(dto),
+      ]);
+
+      return {
+        ...(data as object),
+
+        // TOP CÔNG NỢ - TẤT CẢ THỜI GIAN
+        topCongNo,
+        topCongNoHoaDonPhong,
+        topCongNoTapHoa,
+        topCongNoDienNuoc,
+        topCongNoPhuongTien,
+      } as Prisma.InputJsonValue;
     }
+
+    // ==========================================================
+    // KHÔNG CÓ SNAPSHOT HOẶC SNAPSHOT KHÔNG HỢP LỆ
+    // ==========================================================
 
     const duLieu = await this.tinhThongKe(dto);
 
@@ -1394,16 +1479,73 @@ export class ThongKeService {
       currentRevision,
     );
 
+    // ==========================================================
+    // REVISION THAY ĐỔI TRONG LÚC TÍNH
+    // ==========================================================
     if (!saved) {
       if (retryCount >= 2) {
         throw new ServiceUnavailableException(
-          "Dữ liệu thống kê đang được cập nhật, vui lòng thử lại.",
+          'Dữ liệu thống kê đang được cập nhật, vui lòng thử lại.',
         );
       }
 
-      return this.getThongKeWithRetry(dto, retryCount + 1);
+      return this.getThongKeWithRetry(
+        dto,
+        retryCount + 1,
+      );
     }
 
+    // ==========================================================
+    // SNAPSHOT VỪA TÍNH XONG
+    //
+    // tinhThongKe() đã tính TOP công nợ toàn bộ lịch sử
+    // ==========================================================
     return duLieuJson;
   }
+
+  // private async getThongKeWithRetry(
+  //   dto: ThongKeQueryDto,
+  //   retryCount: number,
+  // ): Promise<Prisma.InputJsonValue> {
+  //   const kyThongKe = this.getKyThongKe(dto);
+  //   const currentRevision = await this.getCurrentRevision();
+
+  //   const snapshot = await this.prisma.thongKeSnapshot.findUnique({
+  //     where: {
+  //       kyThongKe,
+  //     },
+  //   });
+
+  //   if (
+  //     snapshot &&
+  //     currentRevision !== null &&
+  //     snapshot.phienBan === currentRevision &&
+  //     this.isCurrentSnapshot(snapshot.duLieu)
+  //   ) {
+  //     return this.refreshTimeDependentData(snapshot.duLieu);
+  //   }
+
+  //   const duLieu = await this.tinhThongKe(dto);
+
+  //   const duLieuJson = this.toJson(duLieu);
+
+  //   const saved = await this.saveSnapshotIfRevisionMatches(
+  //     dto,
+  //     kyThongKe,
+  //     duLieuJson,
+  //     currentRevision,
+  //   );
+
+  //   if (!saved) {
+  //     if (retryCount >= 2) {
+  //       throw new ServiceUnavailableException(
+  //         "Dữ liệu thống kê đang được cập nhật, vui lòng thử lại.",
+  //       );
+  //     }
+
+  //     return this.getThongKeWithRetry(dto, retryCount + 1);
+  //   }
+
+  //   return duLieuJson;
+  // }
 }
